@@ -1023,18 +1023,24 @@
             letter-spacing: 0.2px;
         }
 
-        /* ===== Card Content Images ===== */
-        .entry-card .card-content img {
+        /* ===== Card Images (always visible, no clamp) ===== */
+        .entry-card .card-images {
+            margin-bottom: 6px;
+        }
+        .entry-card .card-images img {
             max-width: 100%;
             max-height: 180px;
             border-radius: var(--radius-sm);
-            margin: 6px 0;
+            margin: 4px 4px 4px 0;
             object-fit: cover;
-            display: block;
+            display: inline-block;
             border: 1px solid var(--border-light);
+            cursor: zoom-in;
+            transition: all 0.2s ease;
         }
-        .entry-card .card-content img + br {
-            display: none;
+        .entry-card .card-images img:hover {
+            box-shadow: var(--shadow-md);
+            transform: scale(1.02);
         }
         .entry-card .card-title.link-title a {
             color: var(--accent-sage);
@@ -1594,7 +1600,8 @@
         function renderContentWithImages(text, maxLen) {
             // Match image markdown: ![alt](url)
             const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
-            let result = "";
+            let textResult = "";
+            let imagesResult = "";
             let lastIdx = 0;
             let match;
             let shortCount = 0;
@@ -1606,26 +1613,23 @@
                 if (txtBefore) {
                     const remaining = limit - shortCount;
                     if (shortCount >= limit) {
-                        result += formatParagraphs(txtBefore);
+                        textResult += formatParagraphs(txtBefore);
                     } else if (txtBefore.length <= remaining) {
-                        result += formatParagraphs(txtBefore);
+                        textResult += formatParagraphs(txtBefore);
                         shortCount += txtBefore.length;
                     } else {
-                        result += esc(txtBefore.slice(0, remaining)) + "\u2026";
+                        textResult += esc(txtBefore.slice(0, remaining)) + "\u2026";
                         shortCount = limit;
                     }
                 }
 
-                // Image
-                if (shortCount < limit) {
-                    const alt = match[1];
-                    const url = match[2];
-                    const isDataUrl = url.startsWith("data:");
-                    result += '<img src="' + esc(url) + '" alt="' + esc(alt) + '" loading="lazy"'
-                        + (isDataUrl ? ' style="max-height:160px"' : '')
-                        + ' onerror="this.style.display=\'none\'">';
-                    // Images don't count toward text length
-                }
+                // Image → goes to imagesResult (always visible)
+                const alt = match[1];
+                const url = match[2];
+                const isDataUrl = url.startsWith("data:");
+                imagesResult += '<img src="' + esc(url) + '" alt="' + esc(alt) + '" loading="lazy"'
+                    + (isDataUrl ? ' style="max-height:160px"' : '')
+                    + ' onerror="this.style.display=\'none\'">';
                 lastIdx = match.index + match[0].length;
             }
 
@@ -1635,15 +1639,15 @@
                 if (shortCount < limit) {
                     const remaining = limit - shortCount;
                     if (txtAfter.length <= remaining) {
-                        result += formatParagraphs(txtAfter);
+                        textResult += formatParagraphs(txtAfter);
                     } else {
-                        result += esc(txtAfter.slice(0, remaining)) + "\u2026";
+                        textResult += esc(txtAfter.slice(0, remaining)) + "\u2026";
                     }
                 } else {
-                    result += formatParagraphs(txtAfter);
+                    textResult += formatParagraphs(txtAfter);
                 }
             }
-            return result;
+            return { textHtml: textResult, imagesHtml: imagesResult };
         }
 
         function renderEntries() {
@@ -1695,12 +1699,15 @@
                     titleHtml = '<div class="card-title">' + esc(titleText) + '</div>';
                 }
 
-                // Content with image support (full content, CSS handles visual clamp)
+                // Content with image support — images always visible, text clamped
                 let contentHtml = "";
                 if (e.content) {
-                    const rendered = renderContentWithImages(e.content, Infinity);
-                    if (rendered) {
-                        contentHtml = '<div class="card-content">' + rendered + '</div>';
+                    const { textHtml, imagesHtml } = renderContentWithImages(e.content, Infinity);
+                    if (imagesHtml) {
+                        contentHtml += '<div class="card-images">' + imagesHtml + '</div>';
+                    }
+                    if (textHtml) {
+                        contentHtml += '<div class="card-content">' + textHtml + '</div>';
                     }
                 }
 
@@ -2122,7 +2129,7 @@
 
         // Delegate: click any image inside entry cards → open lightbox
         entryList.addEventListener("click", (e) => {
-            const img = e.target.closest(".card-content img");
+            const img = e.target.closest(".entry-card img");
             if (!img) return;
             const src = img.getAttribute("src");
             if (src && src.startsWith("data:")) {
