@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ThinkPad</title>
+  <meta name="description" content="个人学习思考记录">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #1A1A18;
+      font-family: "Inter", "Noto Sans SC", system-ui, sans-serif;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* === Background Gradient & Decorative Blobs === */
+    .bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 80%, rgba(180,140,100,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 20%, rgba(210,170,110,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(160,130,90,0.06) 0%, transparent 50%),
+        linear-gradient(160deg, #1A1A18, #23211D, #1E1D1A);
+    }
+
+    /* Floating decorative circles */
+    .deco {
+      position: fixed;
+      border-radius: 50%;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .deco-1 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(200,170,120,0.06) 0%, transparent 70%);
+      top: -150px; right: -100px;
+      animation: float 20s ease-in-out infinite;
+    }
+    .deco-2 {
+      width: 350px; height: 350px;
+      background: radial-gradient(circle, rgba(180,150,100,0.05) 0%, transparent 65%);
+      bottom: -80px; left: -60px;
+      animation: float 25s ease-in-out infinite reverse;
+    }
+    .deco-3 {
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(220,190,140,0.04) 0%, transparent 60%);
+      top: 30%; left: 10%;
+      animation: float 18s ease-in-out infinite 5s;
+    }
+    .deco-4 {
+      width: 120px; height: 120px;
+      border: 1px solid rgba(200,170,120,0.06);
+      top: 15%; right: 15%;
+      animation: float 22s ease-in-out infinite 3s;
+    }
+    .deco-line {
+      position: fixed;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .deco-line-1 {
+      width: 1px; height: 200px;
+      background: linear-gradient(to bottom, transparent, rgba(200,170,120,0.08), transparent);
+      left: 8%; bottom: 10%;
+      animation: fadePulse 8s ease-in-out infinite;
+    }
+    .deco-line-2 {
+      width: 200px; height: 1px;
+      background: linear-gradient(to right, transparent, rgba(200,170,120,0.08), transparent);
+      top: 22%; right: 5%;
+      animation: fadePulse 10s ease-in-out infinite 2s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(20px, -25px) scale(1.05); }
+      66% { transform: translate(-15px, 15px) scale(0.97); }
+    }
+    @keyframes fadePulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    /* === Grid overlay === */
+    .grid {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 70% 60% at center, black 20%, transparent 60%);
+      -webkit-mask-image: radial-gradient(ellipse 70% 60% at center, black 20%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* === Content === */
+    .content {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      max-width: 640px;
+      padding: 40px 32px;
+      animation: contentIn 1.2s ease-out;
+    }
+
+    @keyframes contentIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .brain {
+      font-size: 56px;
+      line-height: 1;
+      margin-bottom: 24px;
+      display: inline-block;
+      animation: brainIdle 6s ease-in-out infinite;
+      filter: saturate(0.8);
+    }
+    @keyframes brainIdle {
+      0%, 100% { transform: scale(1) rotate(0deg); }
+      25% { transform: scale(1.05) rotate(-3deg); }
+      75% { transform: scale(1.02) rotate(2deg); }
+    }
+
+    .title {
+      font-family: "Playfair Display", "Noto Sans SC", serif;
+      font-size: clamp(3.2rem, 8vw, 5.5rem);
+      font-weight: 700;
+      color: #E8DEC8;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      margin-bottom: 8px;
+      position: relative;
+      display: inline-block;
+    }
+    .title::after {
+      content: "";
+      position: absolute;
+      bottom: 4px;
+      left: 5%;
+      width: 90%;
+      height: 2px;
+      background: linear-gradient(to right, transparent, rgba(200,170,120,0.3), transparent);
+    }
+
+    .subtitle {
+      font-size: clamp(0.95rem, 1.8vw, 1.15rem);
+      color: rgba(200,185,160,0.6);
+      font-weight: 400;
+      letter-spacing: 0.06em;
+      margin-bottom: 48px;
+      line-height: 1.7;
+      font-family: "Inter", "Noto Sans SC", sans-serif;
+    }
+    .subtitle span {
+      display: inline-block;
+    }
+    .subtitle .dot {
+      color: rgba(200,170,120,0.25);
+      margin: 0 10px;
+    }
+
+    .divider {
+      width: 1px;
+      height: 32px;
+      background: linear-gradient(to bottom, transparent, rgba(200,170,120,0.15), transparent);
+      margin: 0 auto 32px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 36px;
+      border-radius: 100px;
+      background: rgba(232,222,200,0.08);
+      color: #E8DEC8;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+      border: 1px solid rgba(232,222,200,0.12);
+      transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      backdrop-filter: blur(4px);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(232,222,200,0.05), transparent);
+      opacity: 0;
+      transition: opacity 0.35s;
+    }
+    .btn:hover {
+      background: rgba(232,222,200,0.14);
+      border-color: rgba(232,222,200,0.25);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+    .btn:hover::before {
+      opacity: 1;
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+    .btn svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.3s;
+    }
+    .btn:hover svg {
+      transform: translateX(3px);
+    }
+
+    .footer {
+      position: fixed;
+      bottom: 32px;
+      left: 0;
+      right: 0;
+      z-index: 2;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(200,185,160,0.25);
+      letter-spacing: 0.04em;
+      animation: contentIn 1.2s ease-out 0.4s both;
+    }
+    .footer a {
+      color: rgba(200,185,160,0.3);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer a:hover {
+      color: rgba(200,185,160,0.6);
+    }
+    .footer .sep {
+      margin: 0 8px;
+      opacity: 0.3;
+    }
+
+    /* === Responsive === */
+    @media (max-width: 640px) {
+      .deco-1 { width: 300px; height: 300px; top: -80px; right: -60px; }
+      .deco-2 { width: 200px; height: 200px; bottom: -40px; left: -40px; }
+      .deco-3, .deco-4 { display: none; }
+      .grid { background-size: 40px 40px; }
+      .footer { bottom: 20px; font-size: 11px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .deco, .deco-line, .brain, .content, .footer { animation: none !important; }
+      .btn:hover { transform: none; }
+      .btn:hover svg { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Background -->
+  <div class="bg"></div>
+  <div class="grid"></div>
+
+  <!-- Decorative elements -->
+  <div class="deco deco-1"></div>
+  <div class="deco deco-2"></div>
+  <div class="deco deco-3"></div>
+  <div class="deco deco-4"></div>
+  <div class="deco-line deco-line-1"></div>
+  <div class="deco-line deco-line-2"></div>
+
+  <!-- Main Content -->
+  <main class="content">
+    <div class="brain">🧠</div>
+    <h1 class="title">ThinkPad</h1>
+    <p class="subtitle">
+      <span>记录学习</span>
+      <span class="dot">·</span>
+      <span>整理思考</span>
+      <span class="dot">·</span>
+      <span>沉淀知识</span>
+    </p>
+    <div class="divider"></div>
+    <a href="/app" class="btn">
+      打开笔记
+      <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+    </a>
+  </main>
+
+  <footer class="footer">
+    <span>ThinkPad · 个人项目</span>
+    <span class="sep">/</span>
+    <a href="https://github.com/nearnight21/thinkpad" target="_blank">GitHub</a>
+  </footer>
+</body>
+</html>
