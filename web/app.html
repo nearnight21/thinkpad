@@ -545,10 +545,11 @@
             font-size: 14px;
             line-height: 1.65;
             color: var(--text-secondary);
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
+            max-height: calc(1.65em * 2 + 0.5em);
             overflow: hidden;
+        }
+        .entry-card .card-content.expanded {
+            max-height: none;
         }
         .entry-card .card-content p {
             margin: 0 0 0.5em;
@@ -1703,10 +1704,10 @@
                     }
                 }
 
-                // Expand button (only when content exists)
+                // Expand button always visible
                 const expandBtnHtml = e.content
                     ? '<div class="card-expand-area"><button class="card-expand-btn" data-id="' + e.id + '"><span class="material-symbols-rounded">unfold_more</span>展开</button></div>'
-                    : '';
+                    : '<div class="card-expand-area"><button class="card-expand-btn card-expand-btn-none" disabled data-id="' + e.id + '" style="visibility:hidden"><span class="material-symbols-rounded">unfold_more</span>展开</button></div>';
 
                 return '<div class="entry-card" data-id="' + e.id + '" style="animation-delay:' + (i * 0.04) + 's">' +
                     '<div class="card-header">' +
