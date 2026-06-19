@@ -1869,6 +1869,10 @@
             }
             // 卡片本体（排除操作区/标签区）：单击展开，双击编辑
             const card = e.target.closest(".entry-card");
+            // 用户在拖选文本时（如复制），松手会触发 click；此时不响应展开/编辑，避免收起
+            if (window.getSelection && window.getSelection().toString().trim()) {
+                return;
+            }
             if (card && !e.target.closest(".card-actions") && !e.target.closest(".card-tags")) {
                 if (cardClickTimer) {
                     clearTimeout(cardClickTimer);
