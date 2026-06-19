@@ -1333,7 +1333,13 @@
             entries: [],
             filterType: "all",
             filterTag: null,
-            searchQuery: ""
+            searchQuery: "",
+            // 分页状态
+            page: 0,
+            pageSize: 50,
+            hasMore: true,
+            loading: false,
+            totalCount: 0
         };
 
         // ===== Image Upload Config =====
@@ -1420,7 +1426,7 @@
         function showApp() {
             loginPage.style.display = "none";
             appPage.style.display = "";
-            fetchEntries();
+            fetchEntries(true);
             // Deep link: ?id=UUID → scroll to and expand specific note
             (function checkDeepLink() {
                 var params = new URLSearchParams(window.location.search);
@@ -1574,30 +1580,167 @@
             });
         }
 
+        // ===== 无限滚动：滚到列表底部自动加载下一页 =====
+        const contentArea = document.querySelector(".content-area");
+        if (contentArea) {
+            contentArea.addEventListener("scroll", () => {
+                if (state.loading || !state.hasMore) return;
+                const { scrollTop, scrollHeight, clientHeight } = contentArea;
+                if (scrollHeight - scrollTop - clientHeight < 300) {
+                    fetchEntries(false);
+                }
+            }, { passive: true });
+        }
+
         // ===== CRUD =====
-        async function fetchEntries() {
+        // ===== 分页与渲染 =====
+
+        // 单张卡片 HTML（animIdx 控制入场动画延迟）
+        function renderCardHTML(e, animIdx) {
+            const date = new Date(e.created_at).toLocaleDateString("zh-CN", {
+                year: "numeric", month: "long", day: "numeric"
+            });
+            const tags = (e.tags || [])
+                .map(t => '<span class="tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>')
+                .join("");
+            const typeIcon = typeIcons[e.type] || "description";
+            let titleHtml = "";
+            if (e.type === "link" && e.title && e.title.match(/^https?:\/\//)) {
+                const urlMatch = e.title.match(/^(https?:\/\/[^\s]+)/);
+                const url = urlMatch ? urlMatch[1] : e.title;
+                const displayTitle = e.title.replace(/^https?:\/\/[^\s]+\s*路?\s*/, "");
+                titleHtml = '<div class="card-title link-title"><a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">'
+                    + esc(displayTitle || url.replace(/^https?:\/\//, "").split("/")[0])
+                    + '</a></div>';
+            } else {
+                const titleText = e.title || (e.content ? e.content.slice(0, 40) : "");
+                titleHtml = '<div class="card-title">' + esc(titleText) + '</div>';
+            }
+            let contentHtml = "";
+            if (e.content) {
+                const { textHtml, imagesHtml } = renderContentWithImages(e.content, Infinity);
+                if (imagesHtml) contentHtml += '<div class="card-images">' + imagesHtml + '</div>';
+                if (textHtml) contentHtml += '<div class="card-content">' + textHtml + '</div>';
+            }
+            const expandBtnHtml = e.content
+                ? '<div class="card-expand-area"><button class="card-expand-btn" data-id="' + e.id + '"><span class="material-symbols-rounded">unfold_more</span>展开</button></div>'
+                : '<div class="card-expand-area"><button class="card-expand-btn card-expand-btn-none" disabled data-id="' + e.id + '" style="visibility:hidden"><span class="material-symbols-rounded">unfold_more</span>展开</button></div>';
+            return '<div class="entry-card" data-id="' + e.id + '" style="animation-delay:' + Math.min(animIdx, 12) * 0.04 + 's">' +
+                '<div class="card-header">' +
+                    '<span class="type-badge" data-type="' + e.type + '">' +
+                        '<span class="material-symbols-rounded" style="font-size:13px;vertical-align:middle;margin-right:3px">' + typeIcon + '</span>' +
+                        typeNames[e.type] +
+                    '</span>' +
+                    '<div class="card-actions">' +
+                        '<button class="edit-btn" data-id="' + e.id + '" title="编辑"><span class="material-symbols-rounded">edit</span></button>' +
+                        '<button class="del-btn" data-id="' + e.id + '" title="删除"><span class="material-symbols-rounded">delete</span></button>' +
+                    '</div>' +
+                '</div>' +
+                titleHtml +
+                contentHtml +
+                expandBtnHtml +
+                (tags ? '<div class="card-tags">' + tags + '</div>' : '') +
+                '<div class="card-time">' + date + '</div>' +
+            '</div>';
+        }
+
+        // 首屏 / 筛选重置：清空列表重新渲染已加载条目
+        function renderEntries() {
+            let entries = state.entries;
+            const titleMap = {
+                all: "全部", note: "笔记", thought: "思考", question: "问题", link: "链接", code: "代码"
+            };
+            contentTitle.textContent = titleMap[state.filterType] || "全部";
+            entryCount.textContent = entries.length + " 条";
+            if (entries.length === 0) {
+                entryList.innerHTML = "";
+                emptyState.style.display = "";
+                renderLoadMore();
+                return;
+            }
+            emptyState.style.display = "none";
+            entryList.innerHTML = entries.map((e, i) => renderCardHTML(e, i)).join("");
+            renderLoadMore();
+        }
+
+        // 追加渲染（分页加载更多时调用）
+        function appendEntries(newEntries) {
+            if (newEntries.length === 0) return;
+            emptyState.style.display = "none";
+            const baseIdx = state.entries.length - newEntries.length;
+            const html = newEntries.map((e, i) => renderCardHTML(e, baseIdx + i)).join("");
+            entryList.insertAdjacentHTML("beforeend", html);
+            renderLoadMore();
+        }
+
+        // 底部加载指示器
+        function renderLoadMore() {
+            let indicator = document.getElementById("loadMoreIndicator");
+            if (!indicator) {
+                indicator = document.createElement("div");
+                indicator.id = "loadMoreIndicator";
+                indicator.style.cssText = "text-align:center;padding:24px;color:var(--ink-muted);font-size:13px;font-family:var(--font-ui)";
+                entryList.parentNode.appendChild(indicator);
+            }
+            if (state.loading) {
+                indicator.textContent = "加载中…";
+                indicator.style.display = "";
+            } else if (!state.hasMore) {
+                indicator.textContent = "没有更多了";
+                indicator.style.display = "";
+            } else {
+                indicator.style.display = "none";
+            }
+        }
+
+        // 拉取条目：reset=true 重置到首页（筛选/搜索/增删后）；false 加载下一页
+        async function fetchEntries(reset) {
             if (!state.session) return;
+            if (reset) {
+                state.page = 0;
+                state.hasMore = true;
+                state.entries = [];
+                entryList.innerHTML = "";
+            }
+            if (!state.hasMore || state.loading) return;
+            state.loading = true;
+            renderLoadMore();
+            const from = state.page * state.pageSize;
+            const to = from + state.pageSize - 1;
             let query = sb
                 .from("entries")
                 .select("*")
                 .eq("user_id", state.session.user.id)
-                .order("created_at", { ascending: false });
-
+                .order("created_at", { ascending: false })
+                .range(from, to);
             if (state.filterType !== "all") {
                 query = query.eq("type", state.filterType);
+            }
+            if (state.filterTag) {
+                query = query.contains("tags", [state.filterTag]);
             }
             if (state.searchQuery) {
                 const q = "%" + state.searchQuery + "%";
                 query = query.or("title.ilike." + q + ",content.ilike." + q);
             }
             const { data, error } = await query;
+            state.loading = false;
             if (error) {
                 console.error("fetchEntries error:", error);
+                renderLoadMore();
                 return;
             }
-            state.entries = data || [];
-            renderEntries();
+            const fetched = data || [];
+            state.hasMore = fetched.length === state.pageSize;
+            if (reset) {
+                state.entries = fetched;
+                renderEntries();
+            } else {
+                state.entries = state.entries.concat(fetched);
+                appendEntries(fetched);
+            }
             populateTagList();
+            state.page++;
         }
 
         async function createEntry(fields) {
@@ -1608,7 +1751,7 @@
                 showToast("创建失败: " + error.message);
                 return;
             }
-            fetchEntries();
+            fetchEntries(true);
         }
 
         async function updateEntry(id, fields) {
@@ -1620,7 +1763,7 @@
                 showToast("更新失败: " + error.message);
                 return;
             }
-            fetchEntries();
+            fetchEntries(true);
         }
 
         async function deleteEntry(id) {
@@ -1632,7 +1775,7 @@
                 showToast("删除失败: " + error.message);
                 return;
             }
-            fetchEntries();
+            fetchEntries(true);
         }
 
         // ===== Render =====
@@ -1722,92 +1865,6 @@
             return { textHtml: textResult, imagesHtml: imagesResult };
         }
 
-        function renderEntries() {
-            let entries = state.entries;
-            if (state.filterTag) {
-                entries = entries.filter(e => e.tags && e.tags.includes(state.filterTag));
-            }
-            const titleMap = {
-                all: "全部",
-                note: "笔记",
-                thought: "思考",
-                question: "问题",
-                link: "链接",
-                code: "代码"
-            };
-            contentTitle.textContent = titleMap[state.filterType] || "全部";
-            entryCount.textContent = entries.length + " 条";
-
-            if (entries.length === 0) {
-                entryList.innerHTML = "";
-                emptyState.style.display = "";
-                return;
-            }
-            emptyState.style.display = "none";
-
-            entryList.innerHTML = entries.map((e, i) => {
-                const date = new Date(e.created_at).toLocaleDateString("zh-CN", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric"
-                });
-                const tags = (e.tags || [])
-                    .map(t => '<span class="tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>')
-                    .join("");
-                const typeIcon = typeIcons[e.type] || "description";
-
-                // Determine title display
-                let titleHtml = "";
-                if (e.type === "link" && e.title && e.title.match(/^https?:\/\//)) {
-                    // Link type with URL as title
-                    const urlMatch = e.title.match(/^(https?:\/\/[^\s]+)/);
-                    const url = urlMatch ? urlMatch[1] : e.title;
-                    const displayTitle = e.title.replace(/^https?:\/\/[^\s]+\s*·?\s*/, "");
-                    titleHtml = '<div class="card-title link-title"><a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">'
-                        + esc(displayTitle || url.replace(/^https?:\/\//, "").split("/")[0])
-                        + '</a></div>';
-                } else {
-                    const titleText = e.title || (e.content ? e.content.slice(0, 40) : "");
-                    titleHtml = '<div class="card-title">' + esc(titleText) + '</div>';
-                }
-
-                // Content with image support — images always visible, text clamped
-                let contentHtml = "";
-                if (e.content) {
-                    const { textHtml, imagesHtml } = renderContentWithImages(e.content, Infinity);
-                    if (imagesHtml) {
-                        contentHtml += '<div class="card-images">' + imagesHtml + '</div>';
-                    }
-                    if (textHtml) {
-                        contentHtml += '<div class="card-content">' + textHtml + '</div>';
-                    }
-                }
-
-                // Expand button always visible
-                const expandBtnHtml = e.content
-                    ? '<div class="card-expand-area"><button class="card-expand-btn" data-id="' + e.id + '"><span class="material-symbols-rounded">unfold_more</span>展开</button></div>'
-                    : '<div class="card-expand-area"><button class="card-expand-btn card-expand-btn-none" disabled data-id="' + e.id + '" style="visibility:hidden"><span class="material-symbols-rounded">unfold_more</span>展开</button></div>';
-
-                return '<div class="entry-card" data-id="' + e.id + '" style="animation-delay:' + (i * 0.04) + 's">' +
-                    '<div class="card-header">' +
-                        '<span class="type-badge" data-type="' + e.type + '">' +
-                            '<span class="material-symbols-rounded" style="font-size:13px;vertical-align:middle;margin-right:3px">' + typeIcon + '</span>' +
-                            typeNames[e.type] +
-                        '</span>' +
-                        '<div class="card-actions">' +
-                            '<button class="edit-btn" data-id="' + e.id + '" title="编辑"><span class="material-symbols-rounded">edit</span></button>' +
-                            '<button class="del-btn" data-id="' + e.id + '" title="删除"><span class="material-symbols-rounded">delete</span></button>' +
-                        '</div>' +
-                    '</div>' +
-                    titleHtml +
-                    contentHtml +
-                    expandBtnHtml +
-                    (tags ? '<div class="card-tags">' + tags + '</div>' : '') +
-                    '<div class="card-time">' + date + '</div>' +
-                '</div>';
-            }).join("");
-        }
-
         // ===== Sidebar Events =====
         sidebar.addEventListener("click", (e) => {
             const btn = e.target.closest(".sidebar-item[data-filter]");
@@ -1816,7 +1873,7 @@
             btn.classList.add("active");
             state.filterType = btn.dataset.filter;
             closeSidebarMobile();
-            fetchEntries();
+            fetchEntries(true);
         });
 
         tagList.addEventListener("click", (e) => {
@@ -1824,7 +1881,7 @@
             if (!btn) return;
             state.filterTag = state.filterTag === btn.dataset.tag ? null : btn.dataset.tag;
             closeSidebarMobile();
-            fetchEntries();
+            fetchEntries(true);
         });
 
         // ===== Entry Card Events =====
@@ -1847,7 +1904,7 @@
             const tagEl = e.target.closest("[data-tag]");
             if (tagEl && tagEl.dataset.tag) {
                 state.filterTag = tagEl.dataset.tag;
-                fetchEntries();
+                fetchEntries(true);
                 return;
             }
             const edit = e.target.closest(".edit-btn");
@@ -1893,7 +1950,7 @@
             clearTimeout(st);
             st = setTimeout(() => {
                 state.searchQuery = searchInput.value.trim();
-                fetchEntries();
+                fetchEntries(true);
             }, 300);
         });
 
