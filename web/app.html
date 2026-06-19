@@ -1431,8 +1431,7 @@
                     if (card) {
                         clearInterval(wait);
                         card.scrollIntoView({ behavior: "smooth", block: "center" });
-                        var btn = card.querySelector(".card-expand-btn");
-                        if (btn) setTimeout(function() { btn.click(); }, 300);
+                        setTimeout(function() { toggleCardExpand(card); }, 300);
                         card.style.outline = "2px solid var(--accent-sage)";
                         setTimeout(function() { card.style.outline = ""; }, 2500);
                         // Clean URL
@@ -1829,6 +1828,21 @@
         });
 
         // ===== Entry Card Events =====
+        // 统一的展开/收起函数：供按钮单击、卡片单击、深度链接复用
+        function toggleCardExpand(card) {
+            if (!card) return;
+            const contentEl = card.querySelector(".card-content");
+            const expandBtn = card.querySelector(".card-expand-btn");
+            if (!contentEl || !expandBtn || expandBtn.disabled) return;
+            const isExpanded = contentEl.classList.toggle("expanded");
+            expandBtn.querySelector(".material-symbols-rounded").textContent = isExpanded ? "unfold_less" : "unfold_more";
+            expandBtn.childNodes[expandBtn.childNodes.length - 1].textContent = isExpanded ? "收起" : "展开";
+        }
+
+        // 单/双击区分：单击展开，双击进入编辑页
+        let cardClickTimer = null;
+        const CARD_DBLCLICK_DELAY = 250;
+
         entryList.addEventListener("click", (e) => {
             const tagEl = e.target.closest("[data-tag]");
             if (tagEl && tagEl.dataset.tag) {
@@ -1846,20 +1860,26 @@
                 openDeleteConfirm(del.dataset.id);
                 return;
             }
+            // 展开按钮：直接展开并阻止冒泡，避免触发卡片本体的单/双击判定
             const expandBtn = e.target.closest(".card-expand-btn");
             if (expandBtn) {
                 e.stopPropagation();
-                const card = expandBtn.closest(".entry-card");
-                const contentEl = card.querySelector(".card-content");
-                if (!contentEl) return;
-                const isExpanded = contentEl.classList.toggle("expanded");
-                expandBtn.querySelector(".material-symbols-rounded").textContent = isExpanded ? "unfold_less" : "unfold_more";
-                expandBtn.childNodes[expandBtn.childNodes.length - 1].textContent = isExpanded ? "收起" : "展开";
+                toggleCardExpand(expandBtn.closest(".entry-card"));
                 return;
             }
+            // 卡片本体（排除操作区/标签区）：单击展开，双击编辑
             const card = e.target.closest(".entry-card");
             if (card && !e.target.closest(".card-actions") && !e.target.closest(".card-tags")) {
-                openEntryModal(state.entries.find(x => x.id === card.dataset.id));
+                if (cardClickTimer) {
+                    clearTimeout(cardClickTimer);
+                    cardClickTimer = null;
+                    openEntryModal(state.entries.find(x => x.id === card.dataset.id));
+                } else {
+                    cardClickTimer = setTimeout(() => {
+                        cardClickTimer = null;
+                        toggleCardExpand(card);
+                    }, CARD_DBLCLICK_DELAY);
+                }
             }
         });
 
