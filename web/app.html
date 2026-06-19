@@ -1908,9 +1908,6 @@
         if (typeof marked !== "undefined") {
             marked.setOptions({ breaks: true, gfm: true, headerIds: false, mangle: false });
         }
-    )
-                .join("");
-        }
 
         // ===== Render content as Markdown (preserves separate images block) =====
         function renderContentWithImages(text, maxLen) {
@@ -1949,7 +1946,7 @@
                 const isDataUrl = url.startsWith("data:");
                 return '<img src="' + esc(url) + '" alt="' + esc(alt) + '" loading="lazy"'
                     + (isDataUrl ? ' style="max-height:160px"' : '')
-                    + ' onerror="this.style.display='none'">';
+                    + ' onerror="this.style.display=\'none\'">';
             }).join("");
 
             return { textHtml: textHtml, imagesHtml: imagesHtml };
