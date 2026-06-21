@@ -1286,7 +1286,193 @@
         .upload-progress.error {
             color: var(--error);
         }
-    </style>
+    
+        /* ===== Fullscreen Reader (double-click on a card) ===== */
+        .fullscreen-reader {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            background: var(--bg);
+            overflow-y: auto;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .reader-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            background: color-mix(in srgb, var(--bg) 90%, transparent);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-light);
+        }
+        .reader-header-left, .reader-header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .reader-date {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .reader-edit-btn, .reader-close-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            background: var(--surface-card);
+            border: 1px solid var(--border-light);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: var(--font-ui);
+        }
+        .reader-edit-btn:hover, .reader-close-btn:hover {
+            background: var(--surface-darker);
+            color: var(--text-primary);
+        }
+        .reader-close-btn { padding: 6px 8px; }
+        .reader-content-wrap {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 56px 28px 96px;
+            font-size: 16px;
+            line-height: 1.75;
+            color: var(--text-primary);
+        }
+        .reader-title {
+            font-family: var(--font-display);
+            font-size: 2.25em;
+            font-weight: 700;
+            line-height: 1.2;
+            margin: 0 0 20px;
+            color: var(--ink);
+        }
+        .reader-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 32px;
+        }
+        .reader-images {
+            margin-bottom: 28px;
+        }
+        .reader-images img {
+            max-width: 100%;
+            max-height: 520px;
+            border-radius: var(--radius-sm);
+            margin: 6px 0;
+            object-fit: cover;
+            display: block;
+        }
+        .reader-content > *:first-child { margin-top: 0; }
+        .reader-content > *:last-child { margin-bottom: 0; }
+        .reader-content p { margin: 0 0 1em; }
+        .reader-content h1, .reader-content h2, .reader-content h3,
+        .reader-content h4, .reader-content h5, .reader-content h6 {
+            font-family: var(--font-display);
+            color: var(--text-primary);
+            font-weight: 600;
+            line-height: 1.3;
+            margin: 1.2em 0 0.5em;
+        }
+        .reader-content h1 { font-size: 1.7em; }
+        .reader-content h2 { font-size: 1.45em; }
+        .reader-content h3 { font-size: 1.2em; }
+        .reader-content h4 { font-size: 1.08em; }
+        .reader-content h5, .reader-content h6 { font-size: 1em; }
+        .reader-content a {
+            color: var(--accent-sage);
+            text-decoration: none;
+            border-bottom: 1px solid color-mix(in srgb, var(--accent-sage) 40%, transparent);
+        }
+        .reader-content a:hover { border-bottom-color: var(--accent-sage); }
+        .reader-content code {
+            font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font-size: 0.9em;
+            background: color-mix(in srgb, var(--accent-sage) 12%, transparent);
+            color: var(--text-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid var(--border-light);
+        }
+        .reader-content pre {
+            font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font-size: 0.88em;
+            background: var(--surface-darker);
+            color: var(--text-primary);
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-light);
+            overflow-x: auto;
+            line-height: 1.55;
+            margin: 0.8em 0;
+        }
+        .reader-content pre code {
+            background: transparent;
+            border: none;
+            padding: 0;
+            font-size: inherit;
+        }
+        .reader-content blockquote {
+            border-left: 3px solid var(--accent-sage);
+            padding: 0.3em 0 0.3em 1em;
+            margin: 0.7em 0;
+            color: var(--ink-secondary);
+            font-style: italic;
+            background: color-mix(in srgb, var(--accent-sage) 6%, transparent);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        }
+        .reader-content blockquote > :first-child { margin-top: 0; }
+        .reader-content blockquote > :last-child { margin-bottom: 0; }
+        .reader-content ul, .reader-content ol {
+            margin: 0.6em 0;
+            padding-left: 1.6em;
+        }
+        .reader-content ul { list-style: disc; }
+        .reader-content ol { list-style: decimal; }
+        .reader-content li { margin: 0.25em 0; }
+        .reader-content li > input[type="checkbox"] {
+            margin-right: 0.4em;
+            vertical-align: middle;
+        }
+        .reader-content hr {
+            border: none;
+            border-top: 1px dashed var(--border);
+            margin: 1.4em 0;
+        }
+        .reader-content table {
+            border-collapse: collapse;
+            margin: 0.8em 0;
+            font-size: 0.95em;
+            width: auto;
+            max-width: 100%;
+        }
+        .reader-content th, .reader-content td {
+            border: 1px solid var(--border);
+            padding: 6px 10px;
+            text-align: left;
+        }
+        .reader-content th {
+            background: var(--surface-darker);
+            font-weight: 600;
+        }
+        .reader-content del {
+            color: var(--ink-muted);
+            text-decoration: line-through;
+        }
+        @media (max-width: 640px) {
+            .reader-content-wrap { padding: 32px 18px 60px; font-size: 15px; }
+            .reader-title { font-size: 1.7em; }
+            .reader-edit-label { display: none; }
+        }
+
+</style>
 </head>
 <body>
 
@@ -2019,7 +2205,7 @@
                 if (cardClickTimer) {
                     clearTimeout(cardClickTimer);
                     cardClickTimer = null;
-                    openEntryModal(state.entries.find(x => x.id === card.dataset.id));
+                    openFullscreenReader(state.entries.find(x => x.id === card.dataset.id));
                 } else {
                     cardClickTimer = setTimeout(() => {
                         cardClickTimer = null;
@@ -2028,6 +2214,59 @@
                 }
             }
         });
+
+        // ===== Fullscreen Reader (double-click on a card) =====
+        function openFullscreenReader(entry) {
+            if (!entry) return;
+            const date = new Date(entry.created_at).toLocaleDateString("zh-CN", {
+                year: "numeric", month: "long", day: "numeric"
+            });
+            const tagsHtml = (entry.tags || [])
+                .map(t => '<span class="tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>')
+                .join("");
+            const typeIcon = typeIcons[entry.type] || "description";
+            const { textHtml, imagesHtml } = renderContentWithImages(entry.content, Infinity);
+            const editId = entry.id;
+            modalContainer.innerHTML = `
+                <div class="fullscreen-reader" id="fullscreenReader">
+                    <div class="reader-header">
+                        <div class="reader-header-left">
+                            <span class="type-badge" data-type="${entry.type}">
+                                <span class="material-symbols-rounded" style="font-size:13px;vertical-align:middle;margin-right:3px">${typeIcon}</span>
+                                ${typeNames[entry.type]}
+                            </span>
+                            <span class="reader-date">${date}</span>
+                        </div>
+                        <div class="reader-header-right">
+                            <button class="reader-edit-btn" data-id="${editId}" title="编辑">
+                                <span class="material-symbols-rounded">edit</span>
+                                <span class="reader-edit-label">编辑</span>
+                            </button>
+                            <button class="reader-close-btn" title="关闭 (Esc)">
+                                <span class="material-symbols-rounded">close</span>
+                            </button>
+                        </div>
+                    </div>
+                    <article class="reader-content-wrap">
+                        ${entry.title ? '<h1 class="reader-title">' + esc(entry.title) + '</h1>' : ''}
+                        ${tagsHtml ? '<div class="reader-tags">' + tagsHtml + '</div>' : ''}
+                        ${imagesHtml ? '<div class="reader-images">' + imagesHtml + '</div>' : ''}
+                        <div class="reader-content">${textHtml}</div>
+                    </article>
+                </div>
+            `;
+            const root = document.getElementById("fullscreenReader");
+            const closeReader = () => { modalContainer.innerHTML = ""; document.removeEventListener("keydown", escHandler); };
+            root.addEventListener("click", (e) => {
+                if (e.target.closest(".reader-close-btn") || e.target === root) closeReader();
+            });
+            const editBtn = root.querySelector(".reader-edit-btn");
+            if (editBtn) editBtn.addEventListener("click", () => { closeReader(); openEntryModal(state.entries.find(x => x.id === editId)); });
+            const tagEls = root.querySelectorAll("[data-tag]");
+            tagEls.forEach(t => t.addEventListener("click", (e) => { e.stopPropagation(); closeReader(); state.filterTag = t.dataset.tag; fetchEntries(true); }));
+            const escHandler = (e) => { if (e.key === "Escape") closeReader(); };
+            document.addEventListener("keydown", escHandler);
+        }
 
         // ===== Search (debounced) =====
         let st;
