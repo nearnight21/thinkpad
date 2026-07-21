@@ -61,7 +61,12 @@ CREATE POLICY "Users can delete own entries"
     ON entries FOR DELETE
     USING (auth.uid() = user_id);
 
--- 6. user_id 触发器：自动填充当前用户 ID（兜底）
+-- 6. 归档支持
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_entries_archived ON entries(user_id, archived);
+
+-- 7. user_id 触发器：自动填充当前用户 ID（兜底）
 CREATE OR REPLACE FUNCTION set_user_id()
 RETURNS TRIGGER AS $$
 BEGIN

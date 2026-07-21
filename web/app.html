@@ -487,6 +487,71 @@
             font-family: var(--font-ui);
         }
 
+        /* ===== Archive Banner ===== */
+        .archive-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            margin-bottom: 12px;
+            background: color-mix(in srgb, var(--accent-lavender) 15%, var(--ground));
+            border: 1px solid color-mix(in srgb, var(--accent-lavender) 30%, transparent);
+            border-radius: 12px;
+            font-family: var(--font-ui);
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .archive-banner-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .archive-banner-left .material-symbols-rounded {
+            font-size: 20px;
+            color: var(--text-secondary);
+        }
+        .archive-banner-left strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .archive-banner .btn-text {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: var(--font-ui);
+            color: var(--text-secondary);
+            background: var(--surface-card);
+            border: 1px solid var(--border-light);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .archive-banner .btn-text:hover {
+            background: var(--surface-darker);
+            color: var(--text-primary);
+        }
+
+        /* ===== Sidebar Archive Count Badge ===== */
+        .archive-count-badge {
+            margin-left: auto;
+            background: color-mix(in srgb, var(--accent-lavender) 30%, transparent);
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--font-ui);
+            padding: 1px 7px;
+            border-radius: 999px;
+            min-width: 20px;
+            text-align: center;
+        }
+        #archiveSidebarBtn.active .archive-count-badge {
+            background: var(--accent-lavender);
+            color: var(--on-primary);
+        }
+
         /* ===== Entry Cards ===== */
         .entry-card {
             background: var(--surface);
@@ -1318,7 +1383,7 @@
             font-size: 13px;
             color: var(--text-secondary);
         }
-        .reader-edit-btn, .reader-close-btn {
+        .reader-edit-btn, .reader-archive-btn, .reader-unarchive-btn, .reader-close-btn {
             display: inline-flex;
             align-items: center;
             gap: 4px;
@@ -1332,7 +1397,7 @@
             transition: all 0.15s ease;
             font-family: var(--font-ui);
         }
-        .reader-edit-btn:hover, .reader-close-btn:hover {
+        .reader-edit-btn:hover, .reader-archive-btn:hover, .reader-unarchive-btn:hover, .reader-close-btn:hover {
             background: var(--surface-darker);
             color: var(--text-primary);
         }
@@ -1555,12 +1620,28 @@
                     <div class="label">标签</div>
                     <div id="tagList"></div>
                 </div>
+                <div class="sidebar-section">
+                    <div class="label">归档</div>
+                    <button class="sidebar-item" id="archiveSidebarBtn">
+                        <span class="material-symbols-rounded">archive</span> 归档箱
+                        <span class="archive-count-badge" id="archiveCount">0</span>
+                    </button>
+                </div>
             </aside>
             <main class="content-area">
                 <div class="content-area-inner">
                     <div class="content-header">
                         <h2 id="contentTitle">全部</h2>
                         <span class="count-badge" id="entryCount">0 条</span>
+                    </div>
+                    <div class="archive-banner" id="archiveBanner" style="display:none">
+                        <div class="archive-banner-left">
+                            <span class="material-symbols-rounded">archive</span>
+                            <span>归档箱 · <strong id="archiveBannerCount">0</strong> 条</span>
+                        </div>
+                        <button class="btn-text" id="archiveBackBtn">
+                            <span class="material-symbols-rounded" style="font-size:18px">arrow_back</span> 返回笔记
+                        </button>
                     </div>
                     <div class="card-masonry" id="entryList"></div>
                     <div class="empty-state" id="emptyState">
@@ -1628,6 +1709,8 @@
             filterType: "all",
             filterTag: null,
             searchQuery: "",
+            showArchived: false,
+            archivedCount: 0,
             // 分页状态
             page: 0,
             pageSize: 50,
@@ -1721,6 +1804,7 @@
             loginPage.style.display = "none";
             appPage.style.display = "";
             fetchEntries(true);
+            fetchArchivedCount();
             // Deep link: ?id=UUID → scroll to and expand specific note
             (function checkDeepLink() {
                 var params = new URLSearchParams(window.location.search);
@@ -1926,7 +2010,11 @@
                         typeNames[e.type] +
                     '</span>' +
                     '<div class="card-actions">' +
-                        '<button class="edit-btn" data-id="' + e.id + '" title="编辑"><span class="material-symbols-rounded">edit</span></button>' +
+                        (state.showArchived
+                            ? '<button class="unarchive-btn" data-id="' + e.id + '" title="取消归档"><span class="material-symbols-rounded">unarchive</span></button>'
+                            : '<button class="edit-btn" data-id="' + e.id + '" title="编辑"><span class="material-symbols-rounded">edit</span></button>' +
+                              '<button class="archive-btn" data-id="' + e.id + '" title="归档"><span class="material-symbols-rounded">archive</span></button>'
+                        ) +
                         '<button class="del-btn" data-id="' + e.id + '" title="删除"><span class="material-symbols-rounded">delete</span></button>' +
                     '</div>' +
                 '</div>' +
@@ -1944,11 +2032,23 @@
             const titleMap = {
                 all: "全部", note: "笔记", thought: "思考", question: "问题", link: "链接", code: "代码"
             };
-            contentTitle.textContent = titleMap[state.filterType] || "全部";
+            contentTitle.textContent = state.showArchived ? "归档箱" : (titleMap[state.filterType] || "全部");
             entryCount.textContent = entries.length + " 条";
+            // 归档提示条显隐
+            const banner = document.getElementById("archiveBanner");
+            if (banner) banner.style.display = state.showArchived ? "" : "none";
+            // FAB 按钮：归档视图隐藏
+            fabBtn.style.display = state.showArchived ? "none" : "";
+            // 搜索框占位符
+            searchInput.placeholder = state.showArchived ? "搜索已归档笔记…" : "搜索标题或内容…";
             if (entries.length === 0) {
                 entryList.innerHTML = "";
                 emptyState.style.display = "";
+                // 归档视图空状态文案
+                const emptyH3 = emptyState.querySelector("h3");
+                const emptyP = emptyState.querySelector("p");
+                if (emptyH3) emptyH3.textContent = state.showArchived ? "归档箱为空" : "还没有笔记";
+                if (emptyP) emptyP.textContent = state.showArchived ? "归档的笔记会出现在这里" : "点击右下角的 + 按钮开始记录吧";
                 renderLoadMore();
                 return;
             }
@@ -2007,6 +2107,8 @@
                 .eq("user_id", state.session.user.id)
                 .order("created_at", { ascending: false })
                 .range(from, to);
+            // 归档过滤：showArchived ? 只看已归档 : 只看未归档
+            query = query.eq("archived", state.showArchived);
             if (state.filterType !== "all") {
                 query = query.eq("type", state.filterType);
             }
@@ -2070,6 +2172,50 @@
                 return;
             }
             fetchEntries(true);
+            fetchArchivedCount();
+        }
+
+        async function archiveEntry(id) {
+            const { error } = await sb
+                .from("entries")
+                .update({ archived: true, archived_at: new Date().toISOString() })
+                .eq("id", id);
+            if (error) {
+                showToast("归档失败: " + error.message);
+                return;
+            }
+            fetchEntries(true);
+            fetchArchivedCount();
+            showToast("已归档");
+        }
+
+        async function unarchiveEntry(id) {
+            const { error } = await sb
+                .from("entries")
+                .update({ archived: false, archived_at: null })
+                .eq("id", id);
+            if (error) {
+                showToast("取消归档失败: " + error.message);
+                return;
+            }
+            fetchEntries(true);
+            fetchArchivedCount();
+            showToast("已取消归档");
+        }
+
+        async function fetchArchivedCount() {
+            const { count, error } = await sb
+                .from("entries")
+                .select("*", { count: "exact", head: true })
+                .eq("user_id", state.session.user.id)
+                .eq("archived", true);
+            if (!error) {
+                state.archivedCount = count || 0;
+                const ac = document.getElementById("archiveCount");
+                if (ac) ac.textContent = state.archivedCount;
+                const abc = document.getElementById("archiveBannerCount");
+                if (abc) abc.textContent = state.archivedCount;
+            }
         }
 
         // ===== Render =====
@@ -2138,11 +2284,30 @@
             return { textHtml: textHtml, imagesHtml: imagesHtml };
         }// ===== Sidebar Events =====
         sidebar.addEventListener("click", (e) => {
+            // 归档按钮
+            const archiveBtn = e.target.closest("#archiveSidebarBtn");
+            if (archiveBtn) {
+                state.showArchived = !state.showArchived;
+                archiveBtn.classList.toggle("active", state.showArchived);
+                // 切换回归档视图时，清除类型筛选的高亮
+                if (state.showArchived) {
+                    sidebar.querySelectorAll(".sidebar-item[data-filter]").forEach(b => b.classList.remove("active"));
+                    state.filterType = "all";
+                    state.filterTag = null;
+                }
+                closeSidebarMobile();
+                fetchEntries(true);
+                return;
+            }
             const btn = e.target.closest(".sidebar-item[data-filter]");
             if (!btn) return;
             sidebar.querySelectorAll(".sidebar-item[data-filter]").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             state.filterType = btn.dataset.filter;
+            // 点击类型筛选时退出归档视图
+            state.showArchived = false;
+            const asb = document.getElementById("archiveSidebarBtn");
+            if (asb) asb.classList.remove("active");
             closeSidebarMobile();
             fetchEntries(true);
         });
@@ -2186,6 +2351,16 @@
             const del = e.target.closest(".del-btn");
             if (del) {
                 openDeleteConfirm(del.dataset.id);
+                return;
+            }
+            const archiveBtn = e.target.closest(".archive-btn");
+            if (archiveBtn) {
+                archiveEntry(archiveBtn.dataset.id);
+                return;
+            }
+            const unarchiveBtn = e.target.closest(".unarchive-btn");
+            if (unarchiveBtn) {
+                unarchiveEntry(unarchiveBtn.dataset.id);
                 return;
             }
             // 展开按钮：直接展开并阻止冒泡，避免触发卡片本体的单/双击判定
@@ -2238,10 +2413,11 @@
                             <span class="reader-date">${date}</span>
                         </div>
                         <div class="reader-header-right">
-                            <button class="reader-edit-btn" data-id="${editId}" title="编辑">
-                                <span class="material-symbols-rounded">edit</span>
-                                <span class="reader-edit-label">编辑</span>
-                            </button>
+                            ${entry.archived
+                                ? '<button class="reader-unarchive-btn" data-id="' + editId + '" title="取消归档"><span class="material-symbols-rounded">unarchive</span><span class="reader-edit-label">取消归档</span></button>'
+                                : '<button class="reader-edit-btn" data-id="' + editId + '" title="编辑"><span class="material-symbols-rounded">edit</span><span class="reader-edit-label">编辑</span></button>' +
+                                  '<button class="reader-archive-btn" data-id="' + editId + '" title="归档"><span class="material-symbols-rounded">archive</span><span class="reader-edit-label">归档</span></button>'
+                            }
                             <button class="reader-close-btn" title="关闭 (Esc)">
                                 <span class="material-symbols-rounded">close</span>
                             </button>
@@ -2262,6 +2438,10 @@
             });
             const editBtn = root.querySelector(".reader-edit-btn");
             if (editBtn) editBtn.addEventListener("click", () => { closeReader(); openEntryModal(state.entries.find(x => x.id === editId)); });
+            const archiveReaderBtn = root.querySelector(".reader-archive-btn");
+            if (archiveReaderBtn) archiveReaderBtn.addEventListener("click", () => { closeReader(); archiveEntry(archiveReaderBtn.dataset.id); });
+            const unarchiveReaderBtn = root.querySelector(".reader-unarchive-btn");
+            if (unarchiveReaderBtn) unarchiveReaderBtn.addEventListener("click", () => { closeReader(); unarchiveEntry(unarchiveReaderBtn.dataset.id); });
             const tagEls = root.querySelectorAll("[data-tag]");
             tagEls.forEach(t => t.addEventListener("click", (e) => { e.stopPropagation(); closeReader(); state.filterTag = t.dataset.tag; fetchEntries(true); }));
             const escHandler = (e) => { if (e.key === "Escape") closeReader(); };
@@ -2296,6 +2476,21 @@
 
         // ===== FAB =====
         fabBtn.addEventListener("click", () => openEntryModal(null));
+
+        // ===== Archive Back Button =====
+        const archiveBackBtn = document.getElementById("archiveBackBtn");
+        if (archiveBackBtn) {
+            archiveBackBtn.addEventListener("click", () => {
+                state.showArchived = false;
+                const asb = document.getElementById("archiveSidebarBtn");
+                if (asb) asb.classList.remove("active");
+                const banner = document.getElementById("archiveBanner");
+                if (banner) banner.style.display = "none";
+                fabBtn.style.display = "";
+                searchInput.placeholder = "搜索标题或内容…";
+                fetchEntries(true);
+            });
+        }
 
         // ===== Entry Modal =====
         function openEntryModal(entry) {
