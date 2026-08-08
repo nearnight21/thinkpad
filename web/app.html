@@ -1531,10 +1531,471 @@
             color: var(--ink-muted);
             text-decoration: line-through;
         }
+
+        /* ===== Selection → AI Bubble ===== */
+        .selection-gpt-bubble {
+            position: fixed;
+            z-index: 10002;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            border: 1px solid color-mix(in srgb, var(--hairline) 72%, var(--ink));
+            border-radius: 10px;
+            background: var(--surface-card);
+            color: var(--ink);
+            box-shadow: var(--shadow-lg), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+            font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+            font-size: 20px;
+            font-weight: 400;
+            line-height: 1;
+            letter-spacing: 0;
+            cursor: pointer;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transform: translateY(4px) scale(0.96);
+            transition: opacity 0.16s ease, transform 0.16s ease, background-color 0.16s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        .selection-gpt-bubble::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            width: 7px;
+            height: 7px;
+            background: var(--surface-card);
+            transform: translateX(-50%) rotate(45deg);
+        }
+        .selection-gpt-bubble[data-side="above"]::after {
+            bottom: -4px;
+            border-right: 1px solid var(--hairline);
+            border-bottom: 1px solid var(--hairline);
+        }
+        .selection-gpt-bubble[data-side="below"]::after {
+            top: -4px;
+            border-left: 1px solid var(--hairline);
+            border-top: 1px solid var(--hairline);
+        }
+        .selection-gpt-bubble.visible {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            transform: translateY(0) scale(1);
+        }
+        .selection-gpt-bubble:hover,
+        .selection-gpt-bubble:focus-visible {
+            background: color-mix(in srgb, var(--surface-card) 80%, white);
+        }
+        .selection-gpt-bubble:focus-visible {
+            outline: 2px solid var(--accent-sage);
+            outline-offset: 2px;
+        }
+        .selection-gpt-bubble:active {
+            transform: scale(0.96);
+        }
+
+        /* ===== Selection AI Answer Panel ===== */
+        .selection-ai-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 10003;
+            border: 0;
+            background: rgba(26, 26, 24, 0.24);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.16s ease, visibility 0.16s ease;
+        }
+        .selection-ai-panel {
+            position: fixed;
+            z-index: 10004;
+            display: flex;
+            flex-direction: column;
+            width: min(430px, calc(100vw - 32px));
+            max-height: min(560px, calc(100vh - 32px));
+            overflow: hidden;
+            border: 1px solid color-mix(in srgb, var(--hairline) 78%, var(--ink));
+            border-radius: var(--radius-md);
+            background: var(--surface-card);
+            color: var(--ink);
+            box-shadow: var(--shadow-xl), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transform: translateY(6px) scale(0.985);
+            transform-origin: top center;
+            transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+        }
+        .selection-ai-panel.open {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            transform: translateY(0) scale(1);
+        }
+        .selection-ai-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-2);
+            padding: 14px 14px 12px 16px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .selection-ai-heading {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+            gap: 10px;
+        }
+        .selection-ai-mark {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border: 1px solid color-mix(in srgb, var(--accent-sage) 58%, var(--hairline));
+            border-radius: 9px;
+            background: color-mix(in srgb, var(--accent-sage) 16%, var(--surface-card));
+            font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+            font-size: 19px;
+            font-weight: 400;
+            line-height: 1;
+            letter-spacing: 0;
+        }
+        .selection-ai-title-group {
+            display: grid;
+            min-width: 0;
+            line-height: 1.25;
+        }
+        .selection-ai-title {
+            font-size: 14px;
+            font-weight: 650;
+            letter-spacing: -0.01em;
+        }
+        .selection-ai-status {
+            margin-top: 2px;
+            color: var(--ink-muted);
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .selection-ai-close {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            width: 36px;
+            height: 36px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: var(--ink-secondary);
+            cursor: pointer;
+            transition: background-color 0.16s ease, color 0.16s ease;
+        }
+        .selection-ai-close:hover,
+        .selection-ai-close:focus-visible {
+            background: var(--surface-darker);
+            color: var(--ink);
+        }
+        .selection-ai-close:focus-visible,
+        .selection-ai-action:focus-visible,
+        .selection-ai-followup-send:focus-visible {
+            outline: 2px solid var(--accent-sage);
+            outline-offset: 2px;
+        }
+        .selection-ai-close .material-symbols-rounded {
+            font-size: 20px;
+        }
+        .selection-ai-body {
+            min-height: 152px;
+            overflow-y: auto;
+            padding: 18px 18px 20px;
+            overscroll-behavior: contain;
+        }
+        .selection-ai-thinking {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 90px;
+            color: var(--ink-muted);
+            font-size: 13px;
+        }
+        .selection-ai-thinking[hidden],
+        .selection-ai-answer[hidden],
+        .selection-ai-error[hidden] {
+            display: none;
+        }
+        .selection-ai-thinking-dots {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .selection-ai-thinking-dots span {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--accent-sage);
+            animation: selectionAiDot 1.1s ease-in-out infinite;
+        }
+        .selection-ai-thinking-dots span:nth-child(2) { animation-delay: 0.14s; }
+        .selection-ai-thinking-dots span:nth-child(3) { animation-delay: 0.28s; }
+        @keyframes selectionAiDot {
+            0%, 70%, 100% { opacity: 0.35; transform: translateY(0); }
+            35% { opacity: 1; transform: translateY(-3px); }
+        }
+        .selection-ai-answer {
+            color: var(--ink);
+            font-family: var(--font-body);
+            font-size: 15px;
+            line-height: 1.75;
+            text-wrap: pretty;
+            overflow-wrap: anywhere;
+        }
+        .selection-ai-answer > :first-child { margin-top: 0; }
+        .selection-ai-answer > :last-child { margin-bottom: 0; }
+        .selection-ai-answer p,
+        .selection-ai-answer ul,
+        .selection-ai-answer ol,
+        .selection-ai-answer blockquote,
+        .selection-ai-answer pre {
+            margin: 0 0 0.85em;
+        }
+        .selection-ai-answer ul,
+        .selection-ai-answer ol {
+            padding-left: 1.4em;
+        }
+        .selection-ai-answer h1,
+        .selection-ai-answer h2,
+        .selection-ai-answer h3 {
+            margin: 1em 0 0.45em;
+            font-family: var(--font-ui);
+            font-size: 1em;
+            line-height: 1.45;
+        }
+        .selection-ai-answer blockquote {
+            padding: 8px 12px;
+            border-left: 3px solid var(--accent-sage);
+            border-radius: 0 8px 8px 0;
+            background: color-mix(in srgb, var(--accent-sage) 7%, transparent);
+            color: var(--ink-secondary);
+        }
+        .selection-ai-answer code {
+            padding: 0.12em 0.35em;
+            border-radius: 5px;
+            background: var(--surface-darker);
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+            font-size: 0.88em;
+        }
+        .selection-ai-answer pre {
+            overflow-x: auto;
+            padding: 12px;
+            border-radius: 10px;
+            background: var(--ink);
+            color: #FFFEFA;
+        }
+        .selection-ai-answer pre code {
+            padding: 0;
+            background: transparent;
+            color: inherit;
+        }
+        .selection-ai-answer a {
+            color: color-mix(in srgb, var(--accent-sage) 78%, black);
+            text-underline-offset: 3px;
+        }
+        .selection-ai-answer .selection-ai-question {
+            margin: 18px 0 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: var(--surface-darker);
+            color: var(--ink-secondary);
+            font-family: var(--font-ui);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+        .selection-ai-answer .selection-ai-question span {
+            display: block;
+            margin-bottom: 3px;
+            color: var(--ink-muted);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+        }
+        .selection-ai-answer .selection-ai-question p {
+            margin: 0;
+        }
+        .selection-ai-error {
+            display: grid;
+            min-height: 100px;
+            align-content: center;
+            gap: 6px;
+            color: var(--ink-secondary);
+        }
+        .selection-ai-error strong {
+            color: var(--error);
+            font-family: var(--font-ui);
+            font-size: 14px;
+        }
+        .selection-ai-error p {
+            font-size: 13px;
+            line-height: 1.6;
+            text-wrap: pretty;
+        }
+        .selection-ai-footer {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px 12px;
+            border-top: 1px solid var(--border-light);
+        }
+        .selection-ai-footer-actions {
+            display: flex;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 6px;
+        }
+        .selection-ai-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 36px;
+            gap: 6px;
+            padding: 0 11px;
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            background: transparent;
+            color: var(--ink-secondary);
+            font-family: var(--font-ui);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+        }
+        .selection-ai-action:hover:not(:disabled) {
+            border-color: var(--hairline);
+            background: var(--surface-darker);
+            color: var(--ink);
+        }
+        .selection-ai-action:disabled {
+            opacity: 0.42;
+            cursor: not-allowed;
+        }
+        .selection-ai-action .material-symbols-rounded {
+            font-size: 17px;
+        }
+        .selection-ai-followup {
+            display: flex;
+            flex: 1 1 auto;
+            align-items: center;
+            min-width: 0;
+            padding: 3px;
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--surface-darker) 54%, transparent);
+            transition: border-color 0.16s ease, background-color 0.16s ease;
+        }
+        .selection-ai-followup:focus-within {
+            border-color: color-mix(in srgb, var(--accent-sage) 70%, var(--hairline));
+            background: var(--surface-card);
+        }
+        .selection-ai-followup-input {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 34px;
+            padding: 0 8px;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            color: var(--ink);
+            font-family: var(--font-ui);
+            font-size: 13px;
+        }
+        .selection-ai-followup-input::placeholder {
+            color: var(--ink-dimmed);
+        }
+        .selection-ai-followup-input:disabled {
+            cursor: not-allowed;
+        }
+        .selection-ai-followup-send {
+            display: inline-flex;
+            flex: 0 0 auto;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            border: 0;
+            border-radius: 9px;
+            background: var(--accent-sage);
+            color: #FFFEFA;
+            cursor: pointer;
+            transition: opacity 0.16s ease, transform 0.16s ease, background-color 0.16s ease;
+        }
+        .selection-ai-followup-send:hover:not(:disabled) {
+            background: color-mix(in srgb, var(--accent-sage) 84%, var(--ink));
+        }
+        .selection-ai-followup-send:active:not(:disabled) {
+            transform: scale(0.94);
+        }
+        .selection-ai-followup-send:disabled {
+            opacity: 0.34;
+            cursor: not-allowed;
+        }
+        .selection-ai-followup-send .material-symbols-rounded {
+            font-size: 19px;
+        }
         @media (max-width: 640px) {
             .reader-content-wrap { padding: 32px 18px 60px; font-size: 15px; }
             .reader-title { font-size: 1.7em; }
             .reader-edit-label { display: none; }
+        }
+        @media (max-width: 640px), (pointer: coarse) {
+            .selection-ai-backdrop.open {
+                opacity: 1;
+                visibility: visible;
+                pointer-events: auto;
+            }
+            .selection-ai-panel {
+                inset: auto 0 0;
+                width: 100%;
+                max-height: min(72dvh, 640px);
+                border-right: 0;
+                border-bottom: 0;
+                border-left: 0;
+                border-radius: 22px 22px 0 0;
+                transform: translateY(18px);
+                transform-origin: bottom center;
+            }
+            .selection-ai-panel.open { transform: translateY(0); }
+            .selection-ai-header { padding: 14px 12px 12px 16px; }
+            .selection-ai-close,
+            .selection-ai-action,
+            .selection-ai-followup-send { min-width: 44px; min-height: 44px; }
+            .selection-ai-body { min-height: 150px; padding: 16px 16px 20px; }
+            .selection-ai-footer { padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); }
+            .selection-ai-action { padding: 0 10px; }
+            .selection-ai-action span:not(.material-symbols-rounded) { display: none; }
+            .selection-ai-followup-input { height: 38px; }
+        }
+        @media (pointer: coarse) {
+            .selection-gpt-bubble {
+                width: 48px;
+                height: 48px;
+                padding: 0;
+                border-radius: 12px;
+                font-size: 22px;
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .selection-gpt-bubble,
+            .selection-ai-backdrop,
+            .selection-ai-panel { transition: none; }
+            .selection-ai-thinking-dots span { animation: none; opacity: 0.75; }
         }
 
 </style>
@@ -1659,6 +2120,91 @@
         </button>
     </div>
 
+    <!-- ===== Selection → AI Bubble ===== -->
+    <button
+        type="button"
+        class="selection-gpt-bubble"
+        id="selectionGptBubble"
+        data-side="above"
+        aria-label="使用 AI 解释所选内容"
+        aria-hidden="true"
+    >🧠</button>
+
+    <!-- ===== Selection AI Answer Panel ===== -->
+    <button
+        type="button"
+        class="selection-ai-backdrop"
+        id="selectionAiBackdrop"
+        aria-label="关闭 AI 解释"
+        tabindex="-1"
+    ></button>
+    <section
+        class="selection-ai-panel"
+        id="selectionAiPanel"
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="selectionAiTitle"
+        aria-hidden="true"
+        aria-busy="false"
+    >
+        <header class="selection-ai-header">
+            <div class="selection-ai-heading">
+                <span class="selection-ai-mark" aria-hidden="true">🧠</span>
+                <span class="selection-ai-title-group">
+                    <strong class="selection-ai-title" id="selectionAiTitle">解释选段</strong>
+                    <span class="selection-ai-status" id="selectionAiStatus">准备回答</span>
+                </span>
+            </div>
+            <button type="button" class="selection-ai-close" id="selectionAiClose" aria-label="关闭">
+                <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
+        </header>
+        <div class="selection-ai-body" id="selectionAiBody">
+            <div class="selection-ai-thinking" id="selectionAiThinking">
+                <span class="selection-ai-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span>正在理解这段内容</span>
+            </div>
+            <div class="selection-ai-answer" id="selectionAiAnswer" role="region" aria-live="polite"></div>
+            <div class="selection-ai-error" id="selectionAiError" hidden>
+                <strong>暂时无法回答</strong>
+                <p id="selectionAiErrorText">请稍后重试。</p>
+            </div>
+        </div>
+        <footer class="selection-ai-footer">
+            <div class="selection-ai-footer-actions">
+                <button type="button" class="selection-ai-action" id="selectionAiCopy" disabled>
+                    <span class="material-symbols-rounded" aria-hidden="true">content_copy</span>
+                    <span>复制</span>
+                </button>
+                <button type="button" class="selection-ai-action" id="selectionAiRetry" disabled>
+                    <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
+                    <span>重试</span>
+                </button>
+            </div>
+            <form class="selection-ai-followup" id="selectionAiFollowupForm">
+                <input
+                    type="text"
+                    class="selection-ai-followup-input"
+                    id="selectionAiFollowupInput"
+                    maxlength="800"
+                    placeholder="继续追问…"
+                    aria-label="继续追问"
+                    autocomplete="off"
+                    disabled
+                >
+                <button
+                    type="submit"
+                    class="selection-ai-followup-send"
+                    id="selectionAiFollowupSend"
+                    aria-label="发送追问"
+                    disabled
+                >
+                    <span class="material-symbols-rounded" aria-hidden="true">arrow_upward</span>
+                </button>
+            </form>
+        </footer>
+    </section>
+
     <!-- ===== Modal Container ===== -->
     <div id="modalContainer"></div>
 
@@ -1701,6 +2247,21 @@
         const tagList = $("tagList");
         const fabBtn = $("fabBtn");
         const modalContainer = $("modalContainer");
+        const selectionGptBubble = $("selectionGptBubble");
+        const selectionAiBackdrop = $("selectionAiBackdrop");
+        const selectionAiPanel = $("selectionAiPanel");
+        const selectionAiClose = $("selectionAiClose");
+        const selectionAiStatus = $("selectionAiStatus");
+        const selectionAiBody = $("selectionAiBody");
+        const selectionAiThinking = $("selectionAiThinking");
+        const selectionAiAnswer = $("selectionAiAnswer");
+        const selectionAiError = $("selectionAiError");
+        const selectionAiErrorText = $("selectionAiErrorText");
+        const selectionAiCopy = $("selectionAiCopy");
+        const selectionAiRetry = $("selectionAiRetry");
+        const selectionAiFollowupForm = $("selectionAiFollowupForm");
+        const selectionAiFollowupInput = $("selectionAiFollowupInput");
+        const selectionAiFollowupSend = $("selectionAiFollowupSend");
 
         // ===== State =====
         const state = {
@@ -1786,6 +2347,622 @@
             }, 2500);
         }
 
+        async function writeTextToClipboard(text) {
+            if (!text) return false;
+            let copied = false;
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    copied = true;
+                } catch (err) {
+                    console.warn("Clipboard API failed, falling back:", err);
+                }
+            }
+
+            if (!copied) {
+                const textarea = document.createElement("textarea");
+                textarea.value = text;
+                textarea.setAttribute("readonly", "");
+                Object.assign(textarea.style, {
+                    position: "fixed",
+                    left: "-9999px",
+                    top: "0",
+                    opacity: "0"
+                });
+                document.body.appendChild(textarea);
+                textarea.select();
+                textarea.setSelectionRange(0, textarea.value.length);
+                copied = document.execCommand("copy");
+                textarea.remove();
+            }
+
+            return copied;
+        }
+
+        async function copyTextToClipboard(text) {
+            if (!text) {
+                showToast("正文为空");
+                return;
+            }
+
+            const copied = await writeTextToClipboard(text);
+            showToast(copied ? "已复制全部正文" : "复制失败，请手动选择正文");
+        }
+
+        // ===== Selection AI Answer Panel =====
+        const AI_EXPLAIN_ENDPOINT = `${WORKER_URL}/explain`;
+        const AI_EXPLAIN_HISTORY_LIMIT = 12;
+        let selectionAiText = "";
+        let selectionAiAnswerText = "";
+        let selectionAiTranscriptMarkdown = "";
+        let selectionAiHistory = [];
+        let selectionAiAnchorRect = null;
+        let selectionAiAbortController = null;
+        let selectionAiRequestId = 0;
+
+        function isSelectionAiMobile() {
+            return window.matchMedia("(max-width: 640px), (pointer: coarse)").matches;
+        }
+
+        function positionSelectionAiPanel(anchorRect) {
+            if (isSelectionAiMobile()) {
+                selectionAiPanel.style.removeProperty("left");
+                selectionAiPanel.style.removeProperty("top");
+                selectionAiPanel.style.removeProperty("transform-origin");
+                return;
+            }
+
+            const edgeGap = 16;
+            const anchorGap = 12;
+            const panelWidth = selectionAiPanel.offsetWidth || 430;
+            const panelHeight = Math.min(
+                selectionAiPanel.offsetHeight || 360,
+                window.innerHeight - edgeGap * 2
+            );
+            const anchor = anchorRect || {
+                left: window.innerWidth / 2,
+                right: window.innerWidth / 2,
+                top: window.innerHeight / 3,
+                bottom: window.innerHeight / 3,
+                width: 0,
+            };
+
+            let top = anchor.bottom + anchorGap;
+            let origin = "top center";
+            if (top + panelHeight > window.innerHeight - edgeGap) {
+                top = Math.max(edgeGap, anchor.top - panelHeight - anchorGap);
+                origin = "bottom center";
+            }
+
+            const anchorCenter = anchor.left + (anchor.width || anchor.right - anchor.left || 0) / 2;
+            const left = Math.min(
+                window.innerWidth - panelWidth - edgeGap,
+                Math.max(edgeGap, anchorCenter - panelWidth / 2)
+            );
+
+            selectionAiPanel.style.left = `${Math.round(left)}px`;
+            selectionAiPanel.style.top = `${Math.round(top)}px`;
+            selectionAiPanel.style.transformOrigin = origin;
+        }
+
+        function selectionAiCanFollowUp() {
+            return selectionAiHistory.length > 0
+                && selectionAiHistory.length < AI_EXPLAIN_HISTORY_LIMIT
+                && selectionAiHistory[selectionAiHistory.length - 1].role === "assistant";
+        }
+
+        function updateSelectionAiFollowupControls(isBusy = false) {
+            const canFollowUp = !isBusy && selectionAiCanFollowUp();
+            selectionAiFollowupInput.disabled = !canFollowUp;
+            selectionAiFollowupSend.disabled = !canFollowUp || !selectionAiFollowupInput.value.trim();
+        }
+
+        function selectionAiConversationText() {
+            const completed = selectionAiHistory.map((message) =>
+                message.role === "user" ? `追问：${message.content}` : message.content
+            );
+            if (selectionAiAnswerText.trim()) completed.push(selectionAiAnswerText.trim());
+            return completed.join("\n\n");
+        }
+
+        function setSelectionAiState(nextState, errorMessage = "") {
+            const isBusy = nextState === "loading" || nextState === "streaming";
+            const isError = nextState === "error";
+            const hasAnswer = Boolean((selectionAiTranscriptMarkdown + selectionAiAnswerText).trim());
+            const statusLabels = {
+                loading: selectionAiHistory.length > 0 ? "正在继续回答" : "正在理解选段",
+                streaming: "正在组织回答",
+                complete: "回答完成",
+                error: "回答失败",
+            };
+
+            selectionAiPanel.dataset.state = nextState;
+            selectionAiPanel.setAttribute("aria-busy", String(isBusy));
+            selectionAiStatus.textContent = statusLabels[nextState] || "准备回答";
+            selectionAiThinking.hidden = nextState !== "loading" || hasAnswer;
+            selectionAiAnswer.hidden = !hasAnswer;
+            selectionAiError.hidden = !isError;
+            selectionAiErrorText.textContent = errorMessage || "请稍后重试。";
+            selectionAiCopy.disabled = !hasAnswer;
+            selectionAiRetry.disabled = isBusy || nextState !== "error";
+            updateSelectionAiFollowupControls(isBusy);
+        }
+
+        function renderSelectionAiMarkdown() {
+            const source = `${selectionAiTranscriptMarkdown}${selectionAiAnswerText}`.trim();
+            if (!source) {
+                selectionAiAnswer.textContent = "";
+                return;
+            }
+
+            if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+                selectionAiAnswer.innerHTML = DOMPurify.sanitize(marked.parse(source));
+            } else {
+                selectionAiAnswer.textContent = source;
+            }
+
+            selectionAiBody.scrollTop = selectionAiBody.scrollHeight;
+        }
+
+        function appendSelectionAiQuestion(question) {
+            const safeQuestion = esc(question).replace(/\n/g, "<br>");
+            selectionAiTranscriptMarkdown += [
+                "\n\n",
+                '<div class="selection-ai-question">',
+                "<span>追问</span>",
+                `<p>${safeQuestion}</p>`,
+                "</div>",
+                "\n\n",
+            ].join("");
+        }
+
+        function selectionAiErrorMessage(code, fallback) {
+            const messages = {
+                missing_api_key: "服务端尚未配置 DeepSeek API Key。",
+                provider_auth_failed: "DeepSeek API Key 无效，请检查后重试。",
+                rate_limited: "请求较多，请稍后再试。",
+                text_too_long: `选中文字过长，请缩短到 ${SELECTION_TEXT_LIMIT} 字以内。`,
+                invalid_history: "对话历史无效，请关闭面板后重新开始。",
+                history_too_long: "追问轮次较多，请重新选择原文开始新对话。",
+                request_too_large: "对话内容过长，请重新选择原文开始新对话。",
+                upstream_unreachable: "暂时无法连接 AI 服务，请稍后重试。",
+                upstream_error: "AI 服务暂时不可用，请稍后重试。",
+                origin_not_allowed: "当前网站地址未被服务端允许。",
+                service_not_deployed: "解释服务尚未部署，请先更新 Cloudflare Worker。",
+                network_error: "暂时无法连接解释服务，请确认 Worker 已部署。",
+                auth_required: "登录状态已失效，请重新登录后再试。",
+                auth_not_configured: "Worker 尚未配置 Supabase 身份验证。",
+                auth_unreachable: "暂时无法验证登录状态，请稍后重试。",
+            };
+            return messages[code] || fallback || "请求失败，请稍后重试。";
+        }
+
+        function parseSelectionAiEvent(block, requestId) {
+            const data = block
+                .split("\n")
+                .filter((line) => line.startsWith("data:"))
+                .map((line) => line.slice(5).trimStart())
+                .join("\n");
+
+            if (!data || data === "[DONE]" || requestId !== selectionAiRequestId) return;
+
+            let event;
+            try {
+                event = JSON.parse(data);
+            } catch {
+                return;
+            }
+
+            const delta = event.choices?.[0]?.delta?.content
+                ?? (event.type === "response.output_text.delta" ? event.delta : "");
+            if (typeof delta === "string" && delta) {
+                selectionAiAnswerText += delta;
+                renderSelectionAiMarkdown();
+                setSelectionAiState("streaming");
+                return;
+            }
+
+            if (event.type === "error" || event.type === "response.failed") {
+                const message = event.error?.message || event.response?.error?.message || "AI 服务返回错误。";
+                throw new Error(message);
+            }
+        }
+
+        async function requestSelectionAiExplanation() {
+            if (!selectionAiText) return;
+
+            if (selectionAiAbortController) selectionAiAbortController.abort();
+            selectionAiAbortController = new AbortController();
+            const requestId = ++selectionAiRequestId;
+            selectionAiAnswerText = "";
+            renderSelectionAiMarkdown();
+            setSelectionAiState("loading");
+
+            try {
+                const accessToken = state.session?.access_token;
+                if (!accessToken) {
+                    const authError = new Error(selectionAiErrorMessage("auth_required"));
+                    authError.code = "auth_required";
+                    throw authError;
+                }
+
+                const response = await fetch(AI_EXPLAIN_ENDPOINT, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${accessToken}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        text: selectionAiText,
+                        history: selectionAiHistory,
+                    }),
+                    signal: selectionAiAbortController.signal,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    if (!errorData.code && response.status === 404) {
+                        errorData.code = "service_not_deployed";
+                    }
+                    const error = new Error(selectionAiErrorMessage(errorData.code, errorData.error));
+                    error.code = errorData.code;
+                    throw error;
+                }
+                if (!response.body) {
+                    throw new Error("浏览器无法读取流式回答。");
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+                    buffer = buffer.replace(/\r\n/g, "\n");
+
+                    let boundary = buffer.indexOf("\n\n");
+                    while (boundary >= 0) {
+                        const block = buffer.slice(0, boundary);
+                        buffer = buffer.slice(boundary + 2);
+                        parseSelectionAiEvent(block, requestId);
+                        boundary = buffer.indexOf("\n\n");
+                    }
+
+                    if (done) {
+                        if (buffer.trim()) parseSelectionAiEvent(buffer, requestId);
+                        break;
+                    }
+                }
+
+                if (requestId !== selectionAiRequestId) return;
+                const completedAnswer = selectionAiAnswerText.trim();
+                if (!completedAnswer) {
+                    throw new Error("AI 没有返回可显示的内容，请重试。");
+                }
+
+                selectionAiTranscriptMarkdown += completedAnswer;
+                selectionAiHistory.push({ role: "assistant", content: completedAnswer });
+                selectionAiAnswerText = "";
+                renderSelectionAiMarkdown();
+                setSelectionAiState("complete");
+            } catch (error) {
+                if (error.name === "AbortError" || requestId !== selectionAiRequestId) return;
+                if (error.name === "TypeError" && !error.code) error.code = "network_error";
+                console.error("Selection AI request failed:", error);
+                setSelectionAiState("error", selectionAiErrorMessage(error.code, error.message));
+            }
+        }
+
+        function openSelectionAiPanel(text, anchorRect) {
+            selectionAiText = text;
+            selectionAiAnswerText = "";
+            selectionAiTranscriptMarkdown = "";
+            selectionAiHistory = [];
+            selectionAiAnchorRect = anchorRect;
+            selectionAiFollowupInput.value = "";
+            selectionAiAnswer.textContent = "";
+            selectionAiAnswer.hidden = true;
+            selectionAiError.hidden = true;
+            selectionAiPanel.setAttribute("aria-hidden", "false");
+            selectionAiPanel.classList.add("open");
+            selectionAiBackdrop.classList.toggle("open", isSelectionAiMobile());
+            positionSelectionAiPanel(anchorRect);
+            requestSelectionAiExplanation();
+        }
+
+        function closeSelectionAiPanel() {
+            if (selectionAiAbortController) {
+                selectionAiAbortController.abort();
+                selectionAiAbortController = null;
+            }
+            selectionAiRequestId += 1;
+            selectionAiPanel.classList.remove("open");
+            selectionAiPanel.setAttribute("aria-hidden", "true");
+            selectionAiPanel.setAttribute("aria-busy", "false");
+            selectionAiBackdrop.classList.remove("open");
+            selectionAiText = "";
+            selectionAiAnswerText = "";
+            selectionAiTranscriptMarkdown = "";
+            selectionAiHistory = [];
+            selectionAiAnchorRect = null;
+            selectionAiFollowupInput.value = "";
+            updateSelectionAiFollowupControls();
+            selectionBubbleInteracting = false;
+        }
+
+        selectionAiClose.addEventListener("click", closeSelectionAiPanel);
+        selectionAiBackdrop.addEventListener("click", closeSelectionAiPanel);
+        selectionAiCopy.addEventListener("click", async () => {
+            const copied = await writeTextToClipboard(selectionAiConversationText());
+            showToast(copied ? "已复制 AI 回答" : "复制失败，请手动选择回答");
+        });
+        selectionAiRetry.addEventListener("click", requestSelectionAiExplanation);
+        selectionAiFollowupInput.addEventListener("input", () => {
+            const isBusy = ["loading", "streaming"].includes(selectionAiPanel.dataset.state);
+            updateSelectionAiFollowupControls(isBusy);
+        });
+        selectionAiFollowupForm.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const question = selectionAiFollowupInput.value.trim();
+            if (!question || !selectionAiCanFollowUp()) return;
+
+            selectionAiHistory.push({ role: "user", content: question });
+            appendSelectionAiQuestion(question);
+            selectionAiFollowupInput.value = "";
+            renderSelectionAiMarkdown();
+            requestSelectionAiExplanation();
+        });
+
+        // ===== Selection → AI =====
+        const SELECTION_BUBBLE_DELAY = 500;
+        const SELECTION_TEXT_LIMIT = 3000;
+        const SELECTION_ROOT_SELECTOR = ".entry-card .card-content, .reader-content";
+        let selectionBubbleTimer = null;
+        let selectionBubbleText = "";
+        let selectionPointerType = "mouse";
+        let selectionPointerActive = false;
+        let selectionBubbleInteracting = false;
+        let selectionBubbleSuppressUntil = 0;
+
+        function selectionNodeElement(node) {
+            if (!node) return null;
+            return node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+        }
+
+        function getSupportedTextSelection() {
+            const selection = window.getSelection ? window.getSelection() : null;
+            if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
+
+            const text = selection.toString().trim();
+            if (!text) return null;
+
+            const range = selection.getRangeAt(0);
+            const startElement = selectionNodeElement(range.startContainer);
+            const endElement = selectionNodeElement(range.endContainer);
+            const startRoot = startElement && startElement.closest(SELECTION_ROOT_SELECTOR);
+            const endRoot = endElement && endElement.closest(SELECTION_ROOT_SELECTOR);
+
+            // Only selections fully contained by the same rendered note body are supported.
+            if (!startRoot || startRoot !== endRoot || !document.body.contains(startRoot)) return null;
+            return { text, range };
+        }
+
+        function hideSelectionGptBubble(options = {}) {
+            if (selectionBubbleTimer) {
+                clearTimeout(selectionBubbleTimer);
+                selectionBubbleTimer = null;
+            }
+            selectionGptBubble.classList.remove("visible");
+            selectionGptBubble.setAttribute("aria-hidden", "true");
+            if (options.clearText !== false) selectionBubbleText = "";
+        }
+
+        function visibleSelectionRect(range, preferLast) {
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const rects = Array.from(range.getClientRects()).filter(rect =>
+                rect.width > 0 &&
+                rect.height > 0 &&
+                rect.bottom >= 0 &&
+                rect.top <= viewportHeight &&
+                rect.right >= 0 &&
+                rect.left <= viewportWidth
+            );
+            if (rects.length > 0) return preferLast ? rects[rects.length - 1] : rects[0];
+
+            const fallback = range.getBoundingClientRect();
+            return fallback.width > 0 || fallback.height > 0 ? fallback : null;
+        }
+
+        function showSelectionGptBubble() {
+            selectionBubbleTimer = null;
+            if (
+                selectionPointerActive ||
+                selectionBubbleInteracting ||
+                Date.now() < selectionBubbleSuppressUntil
+            ) return;
+
+            const selected = getSupportedTextSelection();
+            if (!selected) {
+                hideSelectionGptBubble();
+                return;
+            }
+
+            const isTouch = selectionPointerType === "touch";
+            const rect = visibleSelectionRect(selected.range, isTouch);
+            if (!rect) {
+                hideSelectionGptBubble();
+                return;
+            }
+
+            selectionBubbleText = selected.text;
+            const bubbleWidth = selectionGptBubble.offsetWidth || (isTouch ? 56 : 48);
+            const bubbleHeight = selectionGptBubble.offsetHeight || (isTouch ? 44 : 34);
+            const edgeGap = 8;
+            const selectionGap = isTouch ? 12 : 10;
+            let side = isTouch ? "below" : "above";
+            let top = side === "above"
+                ? rect.top - bubbleHeight - selectionGap
+                : rect.bottom + selectionGap;
+
+            if (top < edgeGap) {
+                side = "below";
+                top = rect.bottom + selectionGap;
+            }
+            if (top + bubbleHeight > window.innerHeight - edgeGap) {
+                side = "above";
+                top = Math.max(edgeGap, rect.top - bubbleHeight - selectionGap);
+            }
+
+            const left = Math.min(
+                window.innerWidth - bubbleWidth - edgeGap,
+                Math.max(edgeGap, rect.left + rect.width / 2 - bubbleWidth / 2)
+            );
+
+            selectionGptBubble.dataset.side = side;
+            selectionGptBubble.style.left = `${Math.round(left)}px`;
+            selectionGptBubble.style.top = `${Math.round(top)}px`;
+            selectionGptBubble.setAttribute("aria-hidden", "false");
+            selectionGptBubble.classList.add("visible");
+        }
+
+        function scheduleSelectionGptBubble() {
+            if (selectionBubbleInteracting || Date.now() < selectionBubbleSuppressUntil) return;
+            if (selectionBubbleTimer) clearTimeout(selectionBubbleTimer);
+            selectionBubbleTimer = setTimeout(showSelectionGptBubble, SELECTION_BUBBLE_DELAY);
+        }
+
+        document.addEventListener("selectionchange", () => {
+            if (!selectionBubbleInteracting) scheduleSelectionGptBubble();
+        });
+
+        document.addEventListener("pointerdown", (e) => {
+            selectionPointerType = e.pointerType || "mouse";
+            if (selectionGptBubble.contains(e.target)) {
+                selectionBubbleInteracting = true;
+                return;
+            }
+            if (selectionAiPanel.contains(e.target)) {
+                selectionBubbleInteracting = true;
+                selectionPointerActive = false;
+                hideSelectionGptBubble();
+                return;
+            }
+            if (selectionAiPanel.classList.contains("open")) {
+                closeSelectionAiPanel();
+            }
+            selectionBubbleInteracting = false;
+            selectionPointerActive = true;
+            hideSelectionGptBubble();
+        }, true);
+
+        document.addEventListener("pointerup", (e) => {
+            selectionPointerActive = false;
+            if (selectionGptBubble.contains(e.target) || selectionAiPanel.contains(e.target)) return;
+            selectionPointerType = e.pointerType || selectionPointerType;
+            scheduleSelectionGptBubble();
+        }, true);
+
+        document.addEventListener("pointercancel", () => {
+            selectionPointerActive = false;
+            selectionBubbleInteracting = false;
+            hideSelectionGptBubble();
+        }, true);
+
+        // Safari may emit touch events without matching Pointer Events during native text selection.
+        document.addEventListener("touchstart", (e) => {
+            selectionPointerType = "touch";
+            if (selectionGptBubble.contains(e.target)) {
+                selectionBubbleInteracting = true;
+                return;
+            }
+            if (selectionAiPanel.contains(e.target)) {
+                selectionBubbleInteracting = true;
+                selectionPointerActive = false;
+                hideSelectionGptBubble();
+                return;
+            }
+            if (selectionAiPanel.classList.contains("open")) {
+                closeSelectionAiPanel();
+            }
+            selectionBubbleInteracting = false;
+            selectionPointerActive = true;
+            hideSelectionGptBubble();
+        }, { passive: true, capture: true });
+
+        document.addEventListener("touchend", (e) => {
+            selectionPointerActive = false;
+            if (selectionGptBubble.contains(e.target) || selectionAiPanel.contains(e.target)) return;
+            scheduleSelectionGptBubble();
+        }, { passive: true, capture: true });
+
+        document.addEventListener("touchcancel", () => {
+            selectionPointerActive = false;
+            selectionBubbleInteracting = false;
+            hideSelectionGptBubble();
+        }, { passive: true, capture: true });
+
+        document.addEventListener("contextmenu", (e) => {
+            // Keep the browser menu untouched; only prevent our bubble from competing with it.
+            selectionBubbleSuppressUntil = Date.now() + 750;
+            selectionBubbleInteracting = false;
+            hideSelectionGptBubble();
+            if (!selectionAiPanel.contains(e.target)) closeSelectionAiPanel();
+        }, true);
+
+        document.addEventListener("scroll", (e) => {
+            hideSelectionGptBubble();
+            if (
+                selectionAiPanel.classList.contains("open") &&
+                !isSelectionAiMobile() &&
+                !selectionAiPanel.contains(e.target)
+            ) closeSelectionAiPanel();
+        }, true);
+        window.addEventListener("resize", () => {
+            hideSelectionGptBubble();
+            if (selectionAiPanel.classList.contains("open")) closeSelectionAiPanel();
+        });
+        window.addEventListener("orientationchange", () => {
+            hideSelectionGptBubble();
+            if (selectionAiPanel.classList.contains("open")) closeSelectionAiPanel();
+        });
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                hideSelectionGptBubble();
+                if (selectionAiPanel.classList.contains("open")) closeSelectionAiPanel();
+            }
+        });
+
+        selectionGptBubble.addEventListener("mousedown", (e) => {
+            // Preserve the text selection until the click has captured the stored text.
+            e.preventDefault();
+        });
+
+        selectionGptBubble.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const text = selectionBubbleText;
+            selectionBubbleInteracting = false;
+
+            if (!text) {
+                hideSelectionGptBubble();
+                return;
+            }
+            if (text.length > SELECTION_TEXT_LIMIT) {
+                showToast(`选中文字过长，请缩短到 ${SELECTION_TEXT_LIMIT} 字以内`);
+                hideSelectionGptBubble();
+                return;
+            }
+
+            const selected = getSupportedTextSelection();
+            const anchorRect = selected
+                ? visibleSelectionRect(selected.range, selectionPointerType === "touch")
+                : selectionGptBubble.getBoundingClientRect();
+            hideSelectionGptBubble();
+            openSelectionAiPanel(text, anchorRect);
+        });
+
         function closeSidebarMobile() {
             if (window.innerWidth <= 768) {
                 sidebar.classList.remove("open");
@@ -1814,7 +2991,9 @@
                     var card = document.querySelector('.entry-card[data-id="' + deepId + '"]')
                     if (card) {
                         clearInterval(wait);
-                        card.scrollIntoView({ behavior: "smooth", block: "center" });
+                        var cardRect = card.getBoundingClientRect();
+                        var cardTop = window.scrollY + cardRect.top - Math.max(16, (window.innerHeight - cardRect.height) / 2);
+                        window.scrollTo({ top: Math.max(0, cardTop), behavior: "smooth" });
                         setTimeout(function() { toggleCardExpand(card); }, 300);
                         card.style.outline = "2px solid var(--accent-sage)";
                         setTimeout(function() { card.style.outline = ""; }, 2500);
@@ -2010,6 +3189,7 @@
                         typeNames[e.type] +
                     '</span>' +
                     '<div class="card-actions">' +
+                        '<button class="copy-btn" data-id="' + e.id + '" title="复制全部正文" aria-label="复制全部正文"><span class="material-symbols-rounded">content_copy</span></button>' +
                         (state.showArchived
                             ? '<button class="unarchive-btn" data-id="' + e.id + '" title="取消归档"><span class="material-symbols-rounded">unarchive</span></button>'
                             : '<button class="edit-btn" data-id="' + e.id + '" title="编辑"><span class="material-symbols-rounded">edit</span></button>' +
@@ -2346,6 +3526,12 @@
             const edit = e.target.closest(".edit-btn");
             if (edit) {
                 openEntryModal(state.entries.find(x => x.id === edit.dataset.id));
+                return;
+            }
+            const copyBtn = e.target.closest(".copy-btn");
+            if (copyBtn) {
+                const entry = state.entries.find(x => x.id === copyBtn.dataset.id);
+                copyTextToClipboard(entry ? entry.content : "");
                 return;
             }
             const del = e.target.closest(".del-btn");
