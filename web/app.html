@@ -2744,7 +2744,12 @@
         // ===== Selection → AI =====
         const SELECTION_BUBBLE_DELAY = 500;
         const SELECTION_TEXT_LIMIT = 3000;
-        const SELECTION_ROOT_SELECTOR = ".entry-card .card-content, .reader-content";
+        const SELECTION_ROOT_SELECTOR = [
+            ".entry-card .card-title",
+            ".entry-card .card-content",
+            ".reader-title",
+            ".reader-content",
+        ].join(", ");
         let selectionBubbleTimer = null;
         let selectionBubbleText = "";
         let selectionPointerType = "mouse";
@@ -2770,7 +2775,7 @@
             const startRoot = startElement && startElement.closest(SELECTION_ROOT_SELECTOR);
             const endRoot = endElement && endElement.closest(SELECTION_ROOT_SELECTOR);
 
-            // Only selections fully contained by the same rendered note body are supported.
+            // Only selections fully contained by the same rendered title or note body are supported.
             if (!startRoot || startRoot !== endRoot || !document.body.contains(startRoot)) return null;
             return { text, range };
         }
