@@ -45,9 +45,9 @@
             --error:            #C94A4A;
 
             /* Typography */
-            --font-display:     system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
-            --font-body:        Georgia, "Songti SC", "SimSun", serif;
-            --font-ui:          system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+            --font-display:     "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
+            --font-body:        "Microsoft YaHei", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
+            --font-ui:          "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
 
             /* Spacing scale */
             --space-1: 8px;
@@ -97,6 +97,7 @@
         @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes cardEnter { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes cardUpdate { from { opacity: 0.72; } to { opacity: 1; } }
 
         /* ===== Login Page ===== */
         .login-page {
@@ -559,20 +560,14 @@
             padding: var(--space-3) var(--space-4);
             margin-bottom: var(--space-2);
             cursor: pointer;
-            transition: all 0.25s ease;
-            animation: cardEnter 0.35s ease-out both;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
             position: relative;
             break-inside: avoid;
             display: inline-block;
             width: 100%;
         }
-        .entry-card:nth-child(1) { animation-delay: 0s; }
-        .entry-card:nth-child(2) { animation-delay: 0.04s; }
-        .entry-card:nth-child(3) { animation-delay: 0.08s; }
-        .entry-card:nth-child(4) { animation-delay: 0.12s; }
-        .entry-card:nth-child(5) { animation-delay: 0.16s; }
-        .entry-card:nth-child(6) { animation-delay: 0.20s; }
-        .entry-card:nth-child(n+7) { animation-delay: 0.24s; }
+        .entry-card.is-entering { animation: cardEnter 0.24s ease-out both; }
+        .entry-card.is-updating { animation: cardUpdate 0.16s ease-out both; }
         .entry-card:hover {
             border-color: var(--border);
             box-shadow: var(--shadow-md);
@@ -1991,9 +1986,13 @@
             }
         }
         @media (prefers-reduced-motion: reduce) {
+            .entry-card.is-entering,
+            .entry-card.is-updating,
             .selection-gpt-bubble,
             .selection-ai-backdrop,
             .selection-ai-panel { transition: none; }
+            .entry-card.is-entering,
+            .entry-card.is-updating { animation: none; }
             .selection-ai-thinking-dots span { animation: none; opacity: 0.75; }
         }
 
@@ -3314,8 +3313,26 @@
         // ===== CRUD =====
         // ===== 分页与渲染 =====
 
-        // 单张卡片 HTML（animIdx 控制入场动画延迟）
-        function renderCardHTML(e, animIdx) {
+        function entryRenderVersion(entry) {
+            const source = JSON.stringify([
+                entry.updated_at || "",
+                entry.title || "",
+                entry.content || "",
+                entry.tags || [],
+                entry.type || "",
+                !!entry.archived,
+                entry.archived_at || ""
+            ]);
+            let hash = 2166136261;
+            for (let i = 0; i < source.length; i++) {
+                hash ^= source.charCodeAt(i);
+                hash = Math.imul(hash, 16777619);
+            }
+            return (hash >>> 0).toString(36);
+        }
+
+        // 单张卡片 HTML。motion 只用于真正新增或发生变化的卡片。
+        function renderCardHTML(e, animIdx = 0, motion = "") {
             const date = new Date(e.created_at).toLocaleDateString("zh-CN", {
                 year: "numeric", month: "long", day: "numeric"
             });
@@ -3344,7 +3361,11 @@
             const expandBtnHtml = e.content
                 ? '<div class="card-expand-area"><button class="card-expand-btn" data-id="' + e.id + '"><span class="material-symbols-rounded">unfold_more</span>展开</button></div>'
                 : '<div class="card-expand-area"><button class="card-expand-btn card-expand-btn-none" disabled data-id="' + e.id + '" style="visibility:hidden"><span class="material-symbols-rounded">unfold_more</span>展开</button></div>';
-            return '<div class="entry-card" data-id="' + e.id + '" style="animation-delay:' + Math.min(animIdx, 12) * 0.04 + 's">' +
+            const motionClass = motion === "enter" ? " is-entering" : (motion === "update" ? " is-updating" : "");
+            const motionStyle = motion === "enter"
+                ? ' style="animation-delay:' + Math.min(animIdx, 8) * 0.025 + 's"'
+                : "";
+            return '<div class="entry-card' + motionClass + '" data-id="' + esc(e.id) + '" data-render-version="' + entryRenderVersion(e) + '"' + motionStyle + '>' +
                 '<div class="card-header">' +
                     '<span class="type-badge" data-type="' + e.type + '">' +
                         '<span class="material-symbols-rounded" style="font-size:13px;vertical-align:middle;margin-right:3px">' + typeIcon + '</span>' +
@@ -3366,6 +3387,79 @@
                 (tags ? '<div class="card-tags">' + tags + '</div>' : '') +
                 '<div class="card-time">' + date + '</div>' +
             '</div>';
+        }
+
+        function cardElementFromEntry(entry, index, motion) {
+            const template = document.createElement("template");
+            template.innerHTML = renderCardHTML(entry, index, motion).trim();
+            return template.content.firstElementChild;
+        }
+
+        function preserveCardViewState(previousCard, nextCard) {
+            const previousContent = previousCard.querySelector(".card-content");
+            if (!previousContent || !previousContent.classList.contains("expanded")) return;
+
+            const nextContent = nextCard.querySelector(".card-content");
+            const nextButton = nextCard.querySelector(".card-expand-btn");
+            if (!nextContent || !nextButton || nextButton.disabled) return;
+
+            nextContent.classList.add("expanded");
+            const icon = nextButton.querySelector(".material-symbols-rounded");
+            if (icon) icon.textContent = "unfold_less";
+            const labelNode = Array.from(nextButton.childNodes)
+                .find(node => node.nodeType === Node.TEXT_NODE);
+            if (labelNode) labelNode.textContent = "收起";
+        }
+
+        // 将云端结果与当前 DOM 对账：相同卡片保留原节点，只处理真正的增删改和排序。
+        function reconcileEntryCards(entries) {
+            const contentRect = contentArea ? contentArea.getBoundingClientRect() : null;
+            const visibleAnchor = contentRect
+                ? Array.from(entryList.querySelectorAll(".entry-card"))
+                    .find(card => card.getBoundingClientRect().bottom > contentRect.top)
+                : null;
+            const anchorId = visibleAnchor ? visibleAnchor.dataset.id : null;
+            const anchorOffset = visibleAnchor
+                ? visibleAnchor.getBoundingClientRect().top - contentRect.top
+                : 0;
+            const existingById = new Map(
+                Array.from(entryList.children)
+                    .filter(element => element.classList.contains("entry-card"))
+                    .map(element => [element.dataset.id, element])
+            );
+
+            entries.forEach((entry, index) => {
+                const id = String(entry.id);
+                const version = entryRenderVersion(entry);
+                let card = existingById.get(id);
+
+                if (!card) {
+                    card = cardElementFromEntry(entry, index, "enter");
+                } else if (card.dataset.renderVersion !== version) {
+                    const replacement = cardElementFromEntry(entry, index, "update");
+                    preserveCardViewState(card, replacement);
+                    card.replaceWith(replacement);
+                    card = replacement;
+                }
+
+                existingById.delete(id);
+                const elementAtIndex = entryList.children[index];
+                if (elementAtIndex !== card) {
+                    entryList.insertBefore(card, elementAtIndex || null);
+                }
+            });
+
+            existingById.forEach(card => card.remove());
+
+            if (contentArea && anchorId) {
+                const nextAnchor = Array.from(entryList.querySelectorAll(".entry-card"))
+                    .find(card => card.dataset.id === anchorId);
+                if (nextAnchor) {
+                    const nextOffset = nextAnchor.getBoundingClientRect().top - contentRect.top;
+                    const offsetDelta = nextOffset - anchorOffset;
+                    if (Math.abs(offsetDelta) > 0.5) contentArea.scrollTop += offsetDelta;
+                }
+            }
         }
 
         // 首屏 / 筛选重置：清空列表重新渲染已加载条目
@@ -3395,7 +3489,11 @@
                 return;
             }
             emptyState.style.display = "none";
-            entryList.innerHTML = entries.map((e, i) => renderCardHTML(e, i)).join("");
+            if (entryList.querySelector(".entry-card")) {
+                reconcileEntryCards(entries);
+            } else {
+                entryList.innerHTML = entries.map((e, i) => renderCardHTML(e, i, "enter")).join("");
+            }
             renderLoadMore();
         }
 
@@ -3404,7 +3502,7 @@
             if (newEntries.length === 0) return;
             emptyState.style.display = "none";
             const baseIdx = state.entries.length - newEntries.length;
-            const html = newEntries.map((e, i) => renderCardHTML(e, baseIdx + i)).join("");
+            const html = newEntries.map((e, i) => renderCardHTML(e, baseIdx + i, "enter")).join("");
             entryList.insertAdjacentHTML("beforeend", html);
             renderLoadMore();
         }
@@ -3495,7 +3593,7 @@
                 return;
             }
             invalidateEntrySnapshot();
-            fetchEntries(true);
+            fetchEntries(true, { keepVisible: true });
         }
 
         async function updateEntry(id, fields) {
@@ -3508,7 +3606,7 @@
                 return;
             }
             invalidateEntrySnapshot();
-            fetchEntries(true);
+            fetchEntries(true, { keepVisible: true });
         }
 
         async function deleteEntry(id) {
@@ -3521,7 +3619,7 @@
                 return;
             }
             invalidateEntrySnapshot();
-            fetchEntries(true);
+            fetchEntries(true, { keepVisible: true });
             fetchArchivedCount();
         }
 
@@ -3535,7 +3633,7 @@
                 return;
             }
             invalidateEntrySnapshot();
-            fetchEntries(true);
+            fetchEntries(true, { keepVisible: true });
             fetchArchivedCount();
             showToast("已归档");
         }
@@ -3550,7 +3648,7 @@
                 return;
             }
             invalidateEntrySnapshot();
-            fetchEntries(true);
+            fetchEntries(true, { keepVisible: true });
             fetchArchivedCount();
             showToast("已取消归档");
         }
