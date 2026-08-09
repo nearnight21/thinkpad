@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ThinkPad · 学习思考记录</title>
+    <link rel="dns-prefetch" href="//guxfvgiretmstpdionnr.supabase.co">
+    <link rel="preconnect" href="https://guxfvgiretmstpdionnr.supabase.co" crossorigin>
     <link rel="stylesheet" href="/vendor/material-symbols-rounded.css">
     <script src="/vendor/supabase-2.108.2.js"></script>
     <!-- Markdown rendering (pinned and served with the app for reliable loading) -->
@@ -2277,6 +2279,131 @@
             totalCount: 0
         };
 
+        // ===== Local entry snapshot cache =====
+        // Supabase remains the source of truth. IndexedDB is only used to paint
+        // the last successful default view while the latest data is fetched.
+        const ENTRY_CACHE_DB_NAME = "thinkpad-local-cache";
+        const ENTRY_CACHE_DB_VERSION = 1;
+        const ENTRY_CACHE_STORE = "entrySnapshots";
+        let entryCacheDbPromise = null;
+
+        function openEntryCacheDb() {
+            if (!("indexedDB" in window)) return Promise.resolve(null);
+            if (entryCacheDbPromise) return entryCacheDbPromise;
+
+            entryCacheDbPromise = new Promise((resolve) => {
+                const request = indexedDB.open(ENTRY_CACHE_DB_NAME, ENTRY_CACHE_DB_VERSION);
+                request.onupgradeneeded = () => {
+                    const db = request.result;
+                    if (!db.objectStoreNames.contains(ENTRY_CACHE_STORE)) {
+                        db.createObjectStore(ENTRY_CACHE_STORE, { keyPath: "userId" });
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => {
+                    console.warn("Entry cache unavailable:", request.error);
+                    entryCacheDbPromise = null;
+                    resolve(null);
+                };
+                request.onblocked = () => {
+                    entryCacheDbPromise = null;
+                    resolve(null);
+                };
+            });
+
+            return entryCacheDbPromise;
+        }
+
+        async function readEntrySnapshot(userId) {
+            if (!userId) return null;
+            const db = await openEntryCacheDb();
+            if (!db) return null;
+
+            return new Promise((resolve) => {
+                try {
+                    const request = db.transaction(ENTRY_CACHE_STORE, "readonly")
+                        .objectStore(ENTRY_CACHE_STORE)
+                        .get(userId);
+                    request.onsuccess = () => {
+                        const snapshot = request.result;
+                        resolve(snapshot && Array.isArray(snapshot.entries) ? snapshot : null);
+                    };
+                    request.onerror = () => resolve(null);
+                } catch (error) {
+                    console.warn("Entry cache read failed:", error);
+                    resolve(null);
+                }
+            });
+        }
+
+        async function writeEntrySnapshot(entries) {
+            const userId = state.session && state.session.user && state.session.user.id;
+            if (!userId || !Array.isArray(entries)) return;
+            const db = await openEntryCacheDb();
+            if (!db) return;
+
+            return new Promise((resolve) => {
+                try {
+                    const request = db.transaction(ENTRY_CACHE_STORE, "readwrite")
+                        .objectStore(ENTRY_CACHE_STORE)
+                        .put({
+                            userId,
+                            entries: entries.slice(0, state.pageSize),
+                            savedAt: Date.now()
+                        });
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => resolve();
+                } catch (error) {
+                    console.warn("Entry cache write failed:", error);
+                    resolve();
+                }
+            });
+        }
+
+        async function deleteEntrySnapshot(userId) {
+            if (!userId) return;
+            const db = await openEntryCacheDb();
+            if (!db) return;
+
+            return new Promise((resolve) => {
+                try {
+                    const request = db.transaction(ENTRY_CACHE_STORE, "readwrite")
+                        .objectStore(ENTRY_CACHE_STORE)
+                        .delete(userId);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => resolve();
+                } catch (error) {
+                    console.warn("Entry cache delete failed:", error);
+                    resolve();
+                }
+            });
+        }
+
+        function isDefaultEntryView() {
+            return !state.showArchived
+                && state.filterType === "all"
+                && !state.filterTag
+                && !state.searchQuery;
+        }
+
+        async function restoreEntrySnapshot() {
+            if (!isDefaultEntryView()) return false;
+            const userId = state.session && state.session.user && state.session.user.id;
+            const snapshot = await readEntrySnapshot(userId);
+            if (!snapshot || snapshot.entries.length === 0) return false;
+
+            state.entries = snapshot.entries;
+            state.hasMore = snapshot.entries.length === state.pageSize;
+            renderEntries();
+            populateTagList();
+            return true;
+        }
+
+        function invalidateEntrySnapshot() {
+            const userId = state.session && state.session.user && state.session.user.id;
+            if (userId) void deleteEntrySnapshot(userId);
+        }
+
         // ===== Image Upload Config =====
         const WORKER_URL = "https://personandb-upload.xiaobai1423.workers.dev";
 
@@ -3006,10 +3133,12 @@
             modalContainer.innerHTML = "";
         }
 
-        function showApp() {
+        async function showApp() {
             loginPage.style.display = "none";
             appPage.style.display = "";
-            fetchEntries(true);
+            emptyState.style.display = "none";
+            const restoredFromCache = await restoreEntrySnapshot();
+            fetchEntries(true, { keepVisible: restoredFromCache });
             fetchArchivedCount();
             // Deep link: ?id=UUID → scroll to and expand specific note
             (function checkDeepLink() {
@@ -3078,8 +3207,12 @@
         });
 
         logoutBtn.addEventListener("click", async () => {
-            await sb.auth.signOut();
+            const userId = state.session && state.session.user && state.session.user.id;
+            // Stop in-flight reads from writing a fresh snapshot after logout.
             state.session = null;
+            await deleteEntrySnapshot(userId);
+            await sb.auth.signOut();
+            state.entries = [];
             showLogin();
         });
 
@@ -3297,13 +3430,15 @@
         }
 
         // 拉取条目：reset=true 重置到首页（筛选/搜索/增删后）；false 加载下一页
-        async function fetchEntries(reset) {
+        async function fetchEntries(reset, options = {}) {
             if (!state.session) return;
             if (reset) {
                 state.page = 0;
                 state.hasMore = true;
-                state.entries = [];
-                entryList.innerHTML = "";
+                if (!options.keepVisible) {
+                    state.entries = [];
+                    entryList.innerHTML = "";
+                }
             }
             if (!state.hasMore || state.loading) return;
             state.loading = true;
@@ -3346,6 +3481,9 @@
             }
             populateTagList();
             state.page++;
+            if (isDefaultEntryView()) {
+                void writeEntrySnapshot(state.entries);
+            }
         }
 
         async function createEntry(fields) {
@@ -3356,6 +3494,7 @@
                 showToast("创建失败: " + error.message);
                 return;
             }
+            invalidateEntrySnapshot();
             fetchEntries(true);
         }
 
@@ -3368,6 +3507,7 @@
                 showToast("更新失败: " + error.message);
                 return;
             }
+            invalidateEntrySnapshot();
             fetchEntries(true);
         }
 
@@ -3380,6 +3520,7 @@
                 showToast("删除失败: " + error.message);
                 return;
             }
+            invalidateEntrySnapshot();
             fetchEntries(true);
             fetchArchivedCount();
         }
@@ -3393,6 +3534,7 @@
                 showToast("归档失败: " + error.message);
                 return;
             }
+            invalidateEntrySnapshot();
             fetchEntries(true);
             fetchArchivedCount();
             showToast("已归档");
@@ -3407,6 +3549,7 @@
                 showToast("取消归档失败: " + error.message);
                 return;
             }
+            invalidateEntrySnapshot();
             fetchEntries(true);
             fetchArchivedCount();
             showToast("已取消归档");
