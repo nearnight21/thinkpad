@@ -2399,6 +2399,7 @@
         let selectionAiAnchorRect = null;
         let selectionAiAbortController = null;
         let selectionAiRequestId = 0;
+        let selectionAiPositionFrame = 0;
 
         function isSelectionAiMobile() {
             return window.matchMedia("(max-width: 640px), (pointer: coarse)").matches;
@@ -2433,6 +2434,10 @@
                 top = Math.max(edgeGap, anchor.top - panelHeight - anchorGap);
                 origin = "bottom center";
             }
+            top = Math.min(
+                Math.max(edgeGap, window.innerHeight - panelHeight - edgeGap),
+                Math.max(edgeGap, top)
+            );
 
             const anchorCenter = anchor.left + (anchor.width || anchor.right - anchor.left || 0) / 2;
             const left = Math.min(
@@ -2443,6 +2448,22 @@
             selectionAiPanel.style.left = `${Math.round(left)}px`;
             selectionAiPanel.style.top = `${Math.round(top)}px`;
             selectionAiPanel.style.transformOrigin = origin;
+        }
+
+        function scheduleSelectionAiPanelPosition() {
+            if (
+                selectionAiPositionFrame
+                || isSelectionAiMobile()
+                || !selectionAiAnchorRect
+                || !selectionAiPanel.classList.contains("open")
+            ) return;
+
+            selectionAiPositionFrame = window.requestAnimationFrame(() => {
+                selectionAiPositionFrame = 0;
+                if (selectionAiPanel.classList.contains("open")) {
+                    positionSelectionAiPanel(selectionAiAnchorRect);
+                }
+            });
         }
 
         function selectionAiCanFollowUp() {
@@ -2486,6 +2507,7 @@
             selectionAiCopy.disabled = !hasAnswer;
             selectionAiRetry.disabled = isBusy || nextState !== "error";
             updateSelectionAiFollowupControls(isBusy);
+            scheduleSelectionAiPanelPosition();
         }
 
         function renderSelectionAiMarkdown() {
@@ -2502,6 +2524,7 @@
             }
 
             selectionAiBody.scrollTop = selectionAiBody.scrollHeight;
+            scheduleSelectionAiPanelPosition();
         }
 
         function appendSelectionAiQuestion(question) {
@@ -2672,6 +2695,10 @@
         }
 
         function closeSelectionAiPanel() {
+            if (selectionAiPositionFrame) {
+                window.cancelAnimationFrame(selectionAiPositionFrame);
+                selectionAiPositionFrame = 0;
+            }
             if (selectionAiAbortController) {
                 selectionAiAbortController.abort();
                 selectionAiAbortController = null;
