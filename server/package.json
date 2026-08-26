@@ -1,0 +1,33 @@
+{
+  "name": "thinkpad-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "migrate": "tsx src/migrate.ts",
+    "migrate:source": "tsx src/migrateFromSupabase.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "verify": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1118.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@node-rs/argon2": "^2.0.2",
+    "bcryptjs": "^3.0.2",
+    "cos-nodejs-sdk-v5": "^3.0.0",
+    "fastify": "^5.6.2",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.3"
+  }
+}

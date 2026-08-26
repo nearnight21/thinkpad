@@ -1,0 +1,12 @@
+redir /thinkpad /thinkpad/ 308
+
+handle /thinkpad/api/* {
+    uri strip_prefix /thinkpad
+    reverse_proxy 127.0.0.1:8790
+}
+
+handle_path /thinkpad/* {
+    root * /var/www/memorae/thinkpad
+    try_files {path} /index.html
+    file_server
+}

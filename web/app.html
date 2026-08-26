@@ -4,13 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ThinkPad · 学习思考记录</title>
-    <link rel="dns-prefetch" href="//guxfvgiretmstpdionnr.supabase.co">
-    <link rel="preconnect" href="https://guxfvgiretmstpdionnr.supabase.co" crossorigin>
-    <link rel="stylesheet" href="/vendor/material-symbols-rounded.css">
-    <script src="/vendor/supabase-2.108.2.js"></script>
+    <link rel="stylesheet" href="/thinkpad/vendor/material-symbols-rounded.css">
     <!-- Markdown rendering (pinned and served with the app for reliable loading) -->
-    <script src="/vendor/marked-12.0.2.min.js"></script>
-    <script src="/vendor/purify-3.1.6.min.js"></script>
+    <script src="/thinkpad/vendor/marked-12.0.2.min.js"></script>
+    <script src="/thinkpad/vendor/purify-3.1.6.min.js"></script>
     <style>
         /* ===== Warm Notebook Design System ===== */
         :root {
@@ -2218,10 +2215,28 @@
     <input type="file" id="imageUploadInput" accept="image/*" multiple style="display:none">
 
     <script>
-        // ===== Supabase Init =====
-        const SUPABASE_URL = "https://guxfvgiretmstpdionnr.supabase.co";
-        const SUPABASE_ANON_KEY = "sb_publishable_PFuDLFQULc3QG5eUM3G7IA_vMpCP7bn";
-        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // ===== ThinkPad API =====
+        const API_BASE = "/thinkpad/api";
+
+        async function apiRequest(path, options = {}) {
+            const headers = new Headers(options.headers || {});
+            if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
+                headers.set("Content-Type", "application/json");
+            }
+            const response = await fetch(API_BASE + path, {
+                ...options,
+                headers,
+                credentials: "same-origin"
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const error = new Error(data.error || `请求失败（${response.status}）`);
+                error.code = data.code;
+                error.status = response.status;
+                throw error;
+            }
+            return data;
+        }
 
         // ===== DOM References =====
         const $ = (id) => document.getElementById(id);
@@ -2279,7 +2294,7 @@
         };
 
         // ===== Local entry snapshot cache =====
-        // Supabase remains the source of truth. IndexedDB is only used to paint
+        // 国内 ThinkPad API 是数据源。IndexedDB 只用于在刷新时快速显示
         // the last successful default view while the latest data is fetched.
         const ENTRY_CACHE_DB_NAME = "thinkpad-local-cache";
         const ENTRY_CACHE_DB_VERSION = 1;
@@ -2403,9 +2418,6 @@
             if (userId) void deleteEntrySnapshot(userId);
         }
 
-        // ===== Image Upload Config =====
-        const WORKER_URL = "https://personandb-upload.xiaobai1423.workers.dev";
-
         // ===== Utilities =====
         function esc(s) {
             if (!s) return "";
@@ -2427,19 +2439,22 @@
             ).join("");
         }
 
-        async function uploadImageToR2(file, onProgress) {
-            const ext = file.name.split(".").pop() || "png";
-            const key = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("key", key);
-            const resp = await fetch(`${WORKER_URL}/upload`, { method: "POST", body: formData });
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                throw new Error(err.error || `Upload failed (${resp.status})`);
-            }
-            const data = await resp.json();
-            return data.url;
+        async function uploadImageToCos(file) {
+            const grant = await apiRequest("/uploads", {
+                method: "POST",
+                body: JSON.stringify({
+                    filename: file.name,
+                    contentType: file.type,
+                    size: file.size
+                })
+            });
+            const response = await fetch(grant.uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": file.type },
+                body: file
+            });
+            if (!response.ok) throw new Error(`COS 上传失败（${response.status}）`);
+            return grant.mediaUrl;
         }
 
         function showToast(msg) {
@@ -2513,7 +2528,7 @@
         }
 
         // ===== Selection AI Answer Panel =====
-        const AI_EXPLAIN_ENDPOINT = `${WORKER_URL}/explain`;
+        const AI_EXPLAIN_ENDPOINT = `${API_BASE}/ai/explain`;
         const AI_EXPLAIN_HISTORY_LIMIT = 12;
         let selectionAiText = "";
         let selectionAiAnswerText = "";
@@ -2674,10 +2689,10 @@
                 upstream_unreachable: "暂时无法连接 AI 服务，请稍后重试。",
                 upstream_error: "AI 服务暂时不可用，请稍后重试。",
                 origin_not_allowed: "当前网站地址未被服务端允许。",
-                service_not_deployed: "解释服务尚未部署，请先更新 Cloudflare Worker。",
-                network_error: "暂时无法连接解释服务，请确认 Worker 已部署。",
+                service_not_deployed: "解释服务尚未部署，请先更新 ThinkPad API。",
+                network_error: "暂时无法连接解释服务，请稍后重试。",
                 auth_required: "登录状态已失效，请重新登录后再试。",
-                auth_not_configured: "Worker 尚未配置 Supabase 身份验证。",
+                auth_not_configured: "ThinkPad API 尚未配置登录验证。",
                 auth_unreachable: "暂时无法验证登录状态，请稍后重试。",
             };
             return messages[code] || fallback || "请求失败，请稍后重试。";
@@ -2725,8 +2740,7 @@
             setSelectionAiState("loading");
 
             try {
-                const accessToken = state.session?.access_token;
-                if (!accessToken) {
+                if (!state.session?.user) {
                     const authError = new Error(selectionAiErrorMessage("auth_required"));
                     authError.code = "auth_required";
                     throw authError;
@@ -2735,9 +2749,9 @@
                 const response = await fetch(AI_EXPLAIN_ENDPOINT, {
                     method: "POST",
                     headers: {
-                        "Authorization": `Bearer ${accessToken}`,
                         "Content-Type": "application/json",
                     },
+                    credentials: "same-origin",
                     body: JSON.stringify({
                         text: selectionAiText,
                         history: selectionAiHistory,
@@ -3156,7 +3170,7 @@
                         setTimeout(function() { card.style.outline = ""; }, 2500);
                         // Clean URL
                         if (history.replaceState) {
-                            history.replaceState(null, "", "/app");
+                            history.replaceState(null, "", "/thinkpad/");
                         }
                     }
                 }, 100);
@@ -3175,11 +3189,17 @@
             }
             loginError.textContent = "";
             loginBtn.disabled = true;
-            const { data, error } = await sb.auth.signInWithPassword({ email, password });
-            loginBtn.disabled = false;
-            if (error) {
+            try {
+                const data = await apiRequest("/login", {
+                    method: "POST",
+                    body: JSON.stringify({ email, password })
+                });
+                state.session = data.session;
+                showApp();
+            } catch (error) {
                 loginError.textContent = error.message;
-                return;
+            } finally {
+                loginBtn.disabled = false;
             }
         });
 
@@ -3190,19 +3210,26 @@
                 loginError.textContent = "请输入邮箱和密码";
                 return;
             }
-            if (password.length < 6) {
-                loginError.textContent = "密码至少 6 位";
+            if (password.length < 10) {
+                loginError.textContent = "密码至少 10 位";
                 return;
             }
+            const invitation = window.prompt("请输入邀请码");
+            if (!invitation) return;
             loginError.textContent = "";
             signupBtn.disabled = true;
-            const { data, error } = await sb.auth.signUp({ email, password });
-            signupBtn.disabled = false;
-            if (error) {
+            try {
+                const data = await apiRequest("/register", {
+                    method: "POST",
+                    body: JSON.stringify({ email, password, invitation })
+                });
+                state.session = data.session;
+                showApp();
+            } catch (error) {
                 loginError.textContent = error.message;
-                return;
+            } finally {
+                signupBtn.disabled = false;
             }
-            loginError.textContent = "✅ 注册成功！请检查邮箱确认，或直接尝试登录";
         });
 
         logoutBtn.addEventListener("click", async () => {
@@ -3210,7 +3237,7 @@
             // Stop in-flight reads from writing a fresh snapshot after logout.
             state.session = null;
             await deleteEntrySnapshot(userId);
-            await sb.auth.signOut();
+            await apiRequest("/logout", { method: "POST" }).catch(() => undefined);
             state.entries = [];
             showLogin();
         });
@@ -3228,8 +3255,12 @@
                         </div>
                         <div class="modal-body">
                             <div class="modal-field">
+                                <label>当前密码</label>
+                                <input type="password" id="currentPwdInput" placeholder="输入当前密码" autocomplete="current-password">
+                            </div>
+                            <div class="modal-field">
                                 <label>新密码</label>
-                                <input type="password" id="newPwdInput" placeholder="至少 6 位" autocomplete="new-password">
+                                <input type="password" id="newPwdInput" placeholder="至少 10 位" autocomplete="new-password">
                             </div>
                             <div class="modal-field">
                                 <label>确认新密码</label>
@@ -3247,6 +3278,7 @@
             const closeB = $("modalClose");
             const cancelB = $("modalCancel");
             const savePwdBtn = $("savePwdBtn");
+            const currentPwdInput = $("currentPwdInput");
             const newPwdInput = $("newPwdInput");
             const confirmPwdInput = $("confirmPwdInput");
             const changePwdError = $("changePwdError");
@@ -3258,10 +3290,15 @@
             confirmPwdInput.addEventListener("keydown", (e) => { if (e.key === "Enter") savePwdBtn.click(); });
 
             savePwdBtn.addEventListener("click", async () => {
+                const currentPassword = currentPwdInput.value;
                 const newPwd = newPwdInput.value;
                 const confirmPwd = confirmPwdInput.value;
-                if (!newPwd || newPwd.length < 6) {
-                    changePwdError.textContent = "密码至少 6 位";
+                if (!currentPassword) {
+                    changePwdError.textContent = "请输入当前密码";
+                    return;
+                }
+                if (!newPwd || newPwd.length < 10) {
+                    changePwdError.textContent = "密码至少 10 位";
                     return;
                 }
                 if (newPwd !== confirmPwd) {
@@ -3269,33 +3306,38 @@
                     return;
                 }
                 savePwdBtn.disabled = true;
-                const { error } = await sb.auth.updateUser({ password: newPwd });
-                savePwdBtn.disabled = false;
-                if (error) {
-                    changePwdError.textContent = error.message;
-                } else {
+                try {
+                    await apiRequest("/change-password", {
+                        method: "POST",
+                        body: JSON.stringify({ currentPassword, newPassword: newPwd })
+                    });
+                    state.session = null;
                     closeModal();
-                    showToast("密码修改成功");
+                    showLogin();
+                    showToast("密码修改成功，请重新登录");
+                } catch (error) {
+                    changePwdError.textContent = error.message;
+                } finally {
+                    savePwdBtn.disabled = false;
                 }
             });
-            setTimeout(() => newPwdInput.focus(), 100);
+            setTimeout(() => currentPwdInput.focus(), 100);
         }
 
         // ===== Session Init =====
         async function initSession() {
-            const { data: { session } } = await sb.auth.getSession();
-            if (session) {
-                state.session = session;
-                showApp();
-            } else {
-                showLogin();
-            }
-            sb.auth.onAuthStateChange((_event, session) => {
-                if (session) {
-                    state.session = session;
-                    if (loginPage.style.display !== "none") showApp();
+            try {
+                const data = await apiRequest("/session");
+                if (data.session) {
+                    state.session = data.session;
+                    showApp();
+                    return;
                 }
-            });
+            } catch (error) {
+                console.warn("Session check failed:", error);
+            }
+            state.session = null;
+            showLogin();
         }
 
         // ===== 无限滚动：滚到列表底部自动加载下一页 =====
@@ -3541,35 +3583,26 @@
             if (!state.hasMore || state.loading) return;
             state.loading = true;
             renderLoadMore();
-            const from = state.page * state.pageSize;
-            const to = from + state.pageSize - 1;
-            let query = sb
-                .from("entries")
-                .select("*")
-                .eq("user_id", state.session.user.id)
-                .order("created_at", { ascending: false })
-                .range(from, to);
-            // 归档过滤：showArchived ? 只看已归档 : 只看未归档
-            query = query.eq("archived", state.showArchived);
-            if (state.filterType !== "all") {
-                query = query.eq("type", state.filterType);
-            }
-            if (state.filterTag) {
-                query = query.contains("tags", [state.filterTag]);
-            }
-            if (state.searchQuery) {
-                const q = "%" + state.searchQuery + "%";
-                query = query.or("title.ilike." + q + ",content.ilike." + q);
-            }
-            const { data, error } = await query;
-            state.loading = false;
-            if (error) {
+            const params = new URLSearchParams({
+                page: String(state.page),
+                pageSize: String(state.pageSize),
+                archived: String(state.showArchived)
+            });
+            if (state.filterType !== "all") params.set("type", state.filterType);
+            if (state.filterTag) params.set("tag", state.filterTag);
+            if (state.searchQuery) params.set("q", state.searchQuery);
+            let result;
+            try {
+                result = await apiRequest("/entries?" + params.toString());
+            } catch (error) {
+                state.loading = false;
                 console.error("fetchEntries error:", error);
                 renderLoadMore();
                 return;
             }
-            const fetched = data || [];
-            state.hasMore = fetched.length === state.pageSize;
+            state.loading = false;
+            const fetched = result.entries || [];
+            state.hasMore = Boolean(result.hasMore);
             if (reset) {
                 state.entries = fetched;
                 renderEntries();
@@ -3585,10 +3618,12 @@
         }
 
         async function createEntry(fields) {
-            const { error } = await sb
-                .from("entries")
-                .insert({ user_id: state.session.user.id, ...fields });
-            if (error) {
+            try {
+                await apiRequest("/entries", {
+                    method: "POST",
+                    body: JSON.stringify(fields)
+                });
+            } catch (error) {
                 showToast("创建失败: " + error.message);
                 return;
             }
@@ -3597,11 +3632,12 @@
         }
 
         async function updateEntry(id, fields) {
-            const { error } = await sb
-                .from("entries")
-                .update(fields)
-                .eq("id", id);
-            if (error) {
+            try {
+                await apiRequest("/entries/" + encodeURIComponent(id), {
+                    method: "PATCH",
+                    body: JSON.stringify(fields)
+                });
+            } catch (error) {
                 showToast("更新失败: " + error.message);
                 return;
             }
@@ -3610,11 +3646,9 @@
         }
 
         async function deleteEntry(id) {
-            const { error } = await sb
-                .from("entries")
-                .delete()
-                .eq("id", id);
-            if (error) {
+            try {
+                await apiRequest("/entries/" + encodeURIComponent(id), { method: "DELETE" });
+            } catch (error) {
                 showToast("删除失败: " + error.message);
                 return;
             }
@@ -3624,11 +3658,12 @@
         }
 
         async function archiveEntry(id) {
-            const { error } = await sb
-                .from("entries")
-                .update({ archived: true, archived_at: new Date().toISOString() })
-                .eq("id", id);
-            if (error) {
+            try {
+                await apiRequest("/entries/" + encodeURIComponent(id), {
+                    method: "PATCH",
+                    body: JSON.stringify({ archived: true })
+                });
+            } catch (error) {
                 showToast("归档失败: " + error.message);
                 return;
             }
@@ -3639,11 +3674,12 @@
         }
 
         async function unarchiveEntry(id) {
-            const { error } = await sb
-                .from("entries")
-                .update({ archived: false, archived_at: null })
-                .eq("id", id);
-            if (error) {
+            try {
+                await apiRequest("/entries/" + encodeURIComponent(id), {
+                    method: "PATCH",
+                    body: JSON.stringify({ archived: false })
+                });
+            } catch (error) {
                 showToast("取消归档失败: " + error.message);
                 return;
             }
@@ -3654,17 +3690,15 @@
         }
 
         async function fetchArchivedCount() {
-            const { count, error } = await sb
-                .from("entries")
-                .select("*", { count: "exact", head: true })
-                .eq("user_id", state.session.user.id)
-                .eq("archived", true);
-            if (!error) {
-                state.archivedCount = count || 0;
+            try {
+                const result = await apiRequest("/entries/archived-count");
+                state.archivedCount = result.count || 0;
                 const ac = document.getElementById("archiveCount");
                 if (ac) ac.textContent = state.archivedCount;
                 const abc = document.getElementById("archiveBannerCount");
                 if (abc) abc.textContent = state.archivedCount;
+            } catch (error) {
+                console.warn("Archived count failed:", error);
             }
         }
 
@@ -4090,7 +4124,7 @@
                         pasteIndicator.style.display = "inline";
                         pasteIndicator.textContent = "正在上传图片...";
                         try {
-                            const url = await uploadImageToR2(file);
+                            const url = await uploadImageToCos(file);
                             const mdImg = "![" + (file.name || "image") + "](" + url + ")";
                             const before = contentI.value.slice(0, start);
                             const after = contentI.value.slice(end);
@@ -4282,9 +4316,8 @@
             }
         });
 
-        // ===== File Upload via Cloudflare R2 Worker =====
+        // ===== File Upload via Tencent COS =====
         const uploadInput = $("imageUploadInput");
-        const R2_WORKER_URL = "https://personandb-upload.xiaobai1423.workers.dev";
 
         uploadInput.addEventListener("change", async (e) => {
             const files = e.target.files;
@@ -4292,31 +4325,7 @@
 
             for (const file of files) {
                 try {
-                    // Generate unique path: user_id/timestamp_filename
-                    const ext = file.name.split(".").pop() || "png";
-                    const key = state.session.user.id + "/" +
-                        Date.now() + "_" +
-                        Math.random().toString(36).slice(2, 8) + "." +
-                        ext;
-
-                    // Upload to R2 via Worker
-                    const formData = new FormData();
-                    formData.append("file", file);
-                    formData.append("key", key);
-
-                    const res = await fetch(R2_WORKER_URL + "/upload", {
-                        method: "POST",
-                        body: formData,
-                    });
-
-                    if (!res.ok) {
-                        const errData = await res.json().catch(() => ({}));
-                        showToast("上传失败: " + (errData.error || res.statusText));
-                        continue;
-                    }
-
-                    const data = await res.json();
-                    const publicUrl = data.url;
+                    const publicUrl = await uploadImageToCos(file);
 
                     // Insert image markdown into the content textarea
                     const modalContent = document.getElementById("entryContent");
@@ -4357,10 +4366,10 @@
                     const uploadBtn = document.createElement("button");
                     uploadBtn.className = "tool-btn";
                     uploadBtn.id = "uploadImgBtn";
-                    uploadBtn.title = "上传图片 (至 R2)";
+                    uploadBtn.title = "上传图片 (至腾讯 COS)";
                     uploadBtn.innerHTML = `
                         <span class="material-symbols-rounded" style="font-size:18px">cloud_upload</span>
-                        <span class="tooltip">上传图片 (≤10MB)</span>
+                        <span class="tooltip">上传图片 (≤20MB)</span>
                     `;
                     pasteBtn.parentNode.insertBefore(uploadBtn, pasteBtn.nextSibling);
 

@@ -1,0 +1,36 @@
+services:
+  api:
+    build:
+      context: ..
+    restart: unless-stopped
+    env_file:
+      - ../../memory-recall-server/deploy/.env
+    environment:
+      THINKPAD_HOST: 0.0.0.0
+      THINKPAD_PORT: 8790
+      THINKPAD_SITE_ORIGIN: https://memorae.cn
+      THINKPAD_BASE_PATH: /thinkpad
+      THINKPAD_SESSION_DAYS: 30
+    ports:
+      - "127.0.0.1:8790:8790"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8790/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    networks:
+      - database
+      - outbound
+
+networks:
+  database:
+    external: true
+    name: deploy_private
+  outbound:
+    external: true
+    name: deploy_public
