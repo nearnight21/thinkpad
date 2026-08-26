@@ -596,7 +596,8 @@
         .type-badge[data-type="code"] { background: var(--secondary-container); color: var(--ink); }
         .entry-card .card-actions {
             display: flex;
-            gap: 2px;
+            align-items: center;
+            gap: 4px;
             flex-shrink: 0;
             opacity: 0;
             transition: opacity 0.2s ease;
@@ -605,8 +606,9 @@
             opacity: 1;
         }
         .entry-card .card-actions button {
-            width: 32px;
-            height: 32px;
+            width: 30px;
+            min-width: 30px;
+            height: 30px;
             border-radius: 50%;
             border: none;
             background: transparent;
@@ -620,6 +622,16 @@
         .entry-card .card-actions button:hover {
             background: var(--accent-peach);
             color: var(--text-primary);
+        }
+        .entry-card .card-actions .pin-btn.is-pinned {
+            color: var(--accent-sage);
+        }
+        .entry-card .card-actions .pin-glyph {
+            font-family: var(--font-ui);
+            font-size: 21px;
+            line-height: 1;
+            display: inline-block;
+            transform: translateY(-1px);
         }
         .entry-card .card-title {
             font-family: var(--font-display);
@@ -1374,7 +1386,7 @@
             font-size: 13px;
             color: var(--text-secondary);
         }
-        .reader-edit-btn, .reader-archive-btn, .reader-unarchive-btn, .reader-close-btn {
+        .reader-edit-btn, .reader-archive-btn, .reader-unarchive-btn, .reader-history-btn, .reader-close-btn {
             display: inline-flex;
             align-items: center;
             gap: 4px;
@@ -1388,11 +1400,82 @@
             transition: all 0.15s ease;
             font-family: var(--font-ui);
         }
-        .reader-edit-btn:hover, .reader-archive-btn:hover, .reader-unarchive-btn:hover, .reader-close-btn:hover {
+        .reader-edit-btn:hover, .reader-archive-btn:hover, .reader-unarchive-btn:hover, .reader-history-btn:hover, .reader-close-btn:hover {
             background: var(--surface-darker);
             color: var(--text-primary);
         }
         .reader-close-btn { padding: 6px 8px; }
+        .history-glyph {
+            display: inline-flex;
+            width: 20px;
+            height: 20px;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-ui);
+            font-size: 22px;
+            line-height: 1;
+        }
+        .history-diff {
+            margin: 0;
+            width: 100%;
+            max-width: 100%;
+            overflow: auto;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            background: #fffdf8;
+            font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+        .history-diff-line {
+            display: grid;
+            grid-template-columns: 42px 42px 22px minmax(0, 1fr);
+            min-width: 0;
+            padding: 2px 10px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+        .history-diff-line.diff-add {
+            color: #176b2c;
+            background: #e8f6e9;
+        }
+        .history-diff-line.diff-del {
+            color: #a52d2d;
+            background: #fdeaea;
+        }
+        .history-diff-line.diff-context { color: var(--text-secondary); }
+        .history-diff-prefix { user-select: none; font-weight: 700; }
+        .history-diff-line > span:last-child {
+            min-width: 0;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+        .history-diff-number {
+            color: var(--ink-muted);
+            text-align: right;
+            padding-right: 8px;
+            user-select: none;
+        }
+        .history-diff-label {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin: 8px 0;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-family: var(--font-ui);
+        }
+        .history-modal {
+            width: min(900px, calc(100vw - 32px));
+            max-width: 900px;
+            max-height: calc(100vh - 32px);
+            overflow: hidden;
+        }
+        .history-modal .modal-body {
+            min-width: 0;
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+        }
         .reader-content-wrap {
             max-width: 760px;
             margin: 0 auto;
@@ -2082,6 +2165,9 @@
                         <span class="material-symbols-rounded">archive</span> 归档箱
                         <span class="archive-count-badge" id="archiveCount">0</span>
                     </button>
+                    <button class="sidebar-item" id="trashSidebarBtn">
+                        <span class="material-symbols-rounded">delete</span> 回收站
+                    </button>
                 </div>
             </aside>
             <main class="content-area">
@@ -2284,6 +2370,7 @@
             filterTag: null,
             searchQuery: "",
             showArchived: false,
+            showDeleted: false,
             archivedCount: 0,
             // 分页状态
             page: 0,
@@ -2395,6 +2482,7 @@
 
         function isDefaultEntryView() {
             return !state.showArchived
+                && !state.showDeleted
                 && state.filterType === "all"
                 && !state.filterTag
                 && !state.searchQuery;
@@ -3363,7 +3451,8 @@
                 entry.tags || [],
                 entry.type || "",
                 !!entry.archived,
-                entry.archived_at || ""
+                entry.archived_at || "",
+                entry.pinned_at || ""
             ]);
             let hash = 2166136261;
             for (let i = 0; i < source.length; i++) {
@@ -3415,12 +3504,16 @@
                     '</span>' +
                     '<div class="card-actions">' +
                         '<button class="copy-btn" data-id="' + e.id + '" title="复制全部正文" aria-label="复制全部正文"><span class="material-symbols-rounded">content_copy</span></button>' +
-                        (state.showArchived
+                        (state.showDeleted
+                            ? '<button class="restore-deleted-btn" data-id="' + e.id + '" title="恢复"><span class="material-symbols-rounded">restore_from_trash</span></button>' +
+                              '<button class="permanent-del-btn" data-id="' + e.id + '" title="永久删除"><span class="material-symbols-rounded">delete_forever</span></button>'
+                            : state.showArchived
                             ? '<button class="unarchive-btn" data-id="' + e.id + '" title="取消归档"><span class="material-symbols-rounded">unarchive</span></button>'
-                            : '<button class="edit-btn" data-id="' + e.id + '" title="编辑"><span class="material-symbols-rounded">edit</span></button>' +
+                            : '<button class="pin-btn' + (e.pinned_at ? ' is-pinned' : '') + '" data-id="' + e.id + '" title="' + (e.pinned_at ? '取消置顶' : '置顶') + '" aria-label="' + (e.pinned_at ? '取消置顶' : '置顶') + '"><span class="pin-glyph" aria-hidden="true">&#9733;</span></button>' +
+                              '<button class="edit-btn" data-id="' + e.id + '" title="编辑"><span class="material-symbols-rounded">edit</span></button>' +
                               '<button class="archive-btn" data-id="' + e.id + '" title="归档"><span class="material-symbols-rounded">archive</span></button>'
                         ) +
-                        '<button class="del-btn" data-id="' + e.id + '" title="删除"><span class="material-symbols-rounded">delete</span></button>' +
+                        (state.showDeleted ? '' : '<button class="del-btn" data-id="' + e.id + '" title="删除"><span class="material-symbols-rounded">delete</span></button>') +
                     '</div>' +
                 '</div>' +
                 titleHtml +
@@ -3510,15 +3603,15 @@
             const titleMap = {
                 all: "全部", note: "笔记", thought: "思考", question: "问题", link: "链接", code: "代码"
             };
-            contentTitle.textContent = state.showArchived ? "归档箱" : (titleMap[state.filterType] || "全部");
+            contentTitle.textContent = state.showDeleted ? "回收站" : (state.showArchived ? "归档箱" : (titleMap[state.filterType] || "全部"));
             entryCount.textContent = entries.length + " 条";
             // 归档提示条显隐
             const banner = document.getElementById("archiveBanner");
             if (banner) banner.style.display = state.showArchived ? "" : "none";
             // FAB 按钮：归档视图隐藏
-            fabBtn.style.display = state.showArchived ? "none" : "";
+            fabBtn.style.display = state.showArchived || state.showDeleted ? "none" : "";
             // 搜索框占位符
-            searchInput.placeholder = state.showArchived ? "搜索已归档笔记…" : "搜索标题或内容…";
+            searchInput.placeholder = state.showDeleted ? "搜索回收站笔记…" : (state.showArchived ? "搜索已归档笔记…" : "搜索标题或内容…");
             if (entries.length === 0) {
                 entryList.innerHTML = "";
                 emptyState.style.display = "";
@@ -3586,7 +3679,8 @@
             const params = new URLSearchParams({
                 page: String(state.page),
                 pageSize: String(state.pageSize),
-                archived: String(state.showArchived)
+                archived: String(state.showArchived),
+                deleted: String(state.showDeleted)
             });
             if (state.filterType !== "all") params.set("type", state.filterType);
             if (state.filterTag) params.set("tag", state.filterTag);
@@ -3625,24 +3719,48 @@
                 });
             } catch (error) {
                 showToast("创建失败: " + error.message);
-                return;
+                return false;
             }
             invalidateEntrySnapshot();
             fetchEntries(true, { keepVisible: true });
+            return true;
         }
 
         async function updateEntry(id, fields) {
             try {
+                const current = state.entries.find(x => x.id === id);
+                if (current && !Object.prototype.hasOwnProperty.call(fields, "base_revision_id")) fields.base_revision_id = current.current_revision_id;
                 await apiRequest("/entries/" + encodeURIComponent(id), {
                     method: "PATCH",
                     body: JSON.stringify(fields)
                 });
             } catch (error) {
-                showToast("更新失败: " + error.message);
-                return;
+                if (error.status === 409) showToast("这条笔记已在其他设备更新，请保留草稿后重新加载");
+                else showToast("更新失败: " + error.message);
+                return false;
             }
             invalidateEntrySnapshot();
             fetchEntries(true, { keepVisible: true });
+            return true;
+        }
+
+        async function togglePin(id, pinned) {
+            try { await apiRequest("/entries/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify({ pinned }) }); }
+            catch (error) { showToast("置顶操作失败: " + error.message); return; }
+            invalidateEntrySnapshot(); fetchEntries(true, { keepVisible: true });
+        }
+
+        async function restoreDeleted(id) {
+            try { await apiRequest("/entries/" + encodeURIComponent(id) + "/restore-deleted", { method: "POST" }); }
+            catch (error) { showToast("恢复失败: " + error.message); return; }
+            invalidateEntrySnapshot(); fetchEntries(true, { keepVisible: true });
+        }
+
+        async function permanentDelete(id) {
+            if (!confirm("永久删除后无法恢复，确定继续吗？")) return;
+            try { await apiRequest("/entries/" + encodeURIComponent(id) + "/permanent", { method: "DELETE" }); }
+            catch (error) { showToast("永久删除失败: " + error.message); return; }
+            invalidateEntrySnapshot(); fetchEntries(true, { keepVisible: true });
         }
 
         async function deleteEntry(id) {
@@ -3768,10 +3886,25 @@
             return { textHtml: textHtml, imagesHtml: imagesHtml };
         }// ===== Sidebar Events =====
         sidebar.addEventListener("click", (e) => {
+            const trashBtn = e.target.closest("#trashSidebarBtn");
+            if (trashBtn) {
+                state.showDeleted = !state.showDeleted;
+                state.showArchived = false;
+                state.filterType = "all";
+                state.filterTag = null;
+                sidebar.querySelectorAll(".sidebar-item[data-filter]").forEach(b => b.classList.remove("active"));
+                document.getElementById("archiveSidebarBtn")?.classList.remove("active");
+                trashBtn.classList.toggle("active", state.showDeleted);
+                closeSidebarMobile();
+                fetchEntries(true);
+                return;
+            }
             // 归档按钮
             const archiveBtn = e.target.closest("#archiveSidebarBtn");
             if (archiveBtn) {
                 state.showArchived = !state.showArchived;
+                state.showDeleted = false;
+                document.getElementById("trashSidebarBtn")?.classList.remove("active");
                 archiveBtn.classList.toggle("active", state.showArchived);
                 // 切换回归档视图时，清除类型筛选的高亮
                 if (state.showArchived) {
@@ -3790,8 +3923,10 @@
             state.filterType = btn.dataset.filter;
             // 点击类型筛选时退出归档视图
             state.showArchived = false;
+            state.showDeleted = false;
             const asb = document.getElementById("archiveSidebarBtn");
             if (asb) asb.classList.remove("active");
+            document.getElementById("trashSidebarBtn")?.classList.remove("active");
             closeSidebarMobile();
             fetchEntries(true);
         });
@@ -3838,6 +3973,16 @@
                 copyTextToClipboard(entry ? entry.content : "");
                 return;
             }
+            const pinBtn = e.target.closest(".pin-btn");
+            if (pinBtn) {
+                const entry = state.entries.find(x => x.id === pinBtn.dataset.id);
+                if (entry) togglePin(entry.id, !entry.pinned_at);
+                return;
+            }
+            const restoreDeletedBtn = e.target.closest(".restore-deleted-btn");
+            if (restoreDeletedBtn) { restoreDeleted(restoreDeletedBtn.dataset.id); return; }
+            const permanentDelBtn = e.target.closest(".permanent-del-btn");
+            if (permanentDelBtn) { permanentDelete(permanentDelBtn.dataset.id); return; }
             const del = e.target.closest(".del-btn");
             if (del) {
                 openDeleteConfirm(del.dataset.id);
@@ -3908,6 +4053,7 @@
                                 : '<button class="reader-edit-btn" data-id="' + editId + '" title="编辑"><span class="material-symbols-rounded">edit</span><span class="reader-edit-label">编辑</span></button>' +
                                   '<button class="reader-archive-btn" data-id="' + editId + '" title="归档"><span class="material-symbols-rounded">archive</span><span class="reader-edit-label">归档</span></button>'
                             }
+                            <button class="reader-history-btn" data-id="${editId}" title="历史"><span class="history-glyph" aria-hidden="true">&#8634;</span><span class="reader-edit-label">历史</span></button>
                             <button class="reader-close-btn" title="关闭 (Esc)">
                                 <span class="material-symbols-rounded">close</span>
                             </button>
@@ -3932,10 +4078,103 @@
             if (archiveReaderBtn) archiveReaderBtn.addEventListener("click", () => { closeReader(); archiveEntry(archiveReaderBtn.dataset.id); });
             const unarchiveReaderBtn = root.querySelector(".reader-unarchive-btn");
             if (unarchiveReaderBtn) unarchiveReaderBtn.addEventListener("click", () => { closeReader(); unarchiveEntry(unarchiveReaderBtn.dataset.id); });
+            const historyBtn = root.querySelector(".reader-history-btn");
+            if (historyBtn) historyBtn.addEventListener("click", () => { closeReader(); openHistoryModal(editId); });
             const tagEls = root.querySelectorAll("[data-tag]");
             tagEls.forEach(t => t.addEventListener("click", (e) => { e.stopPropagation(); closeReader(); state.filterTag = t.dataset.tag; fetchEntries(true); }));
             const escHandler = (e) => { if (e.key === "Escape") closeReader(); };
             document.addEventListener("keydown", escHandler);
+        }
+
+        async function openHistoryModal(id) {
+            function buildDiffRows(oldText, newText) {
+                const oldLines = String(oldText || "").split("\n");
+                const newLines = String(newText || "").split("\n");
+                if (oldLines.length * newLines.length > 2000000) {
+                    return oldLines.map((text, index) => ({ kind: "del", text, oldLine: index + 1, newLine: "" }))
+                        .concat(newLines.map((text, index) => ({ kind: "add", text, oldLine: "", newLine: index + 1 })));
+                }
+                const table = Array.from({ length: oldLines.length + 1 }, () => Array(newLines.length + 1).fill(0));
+                for (let oldIndex = oldLines.length - 1; oldIndex >= 0; oldIndex--) {
+                    for (let newIndex = newLines.length - 1; newIndex >= 0; newIndex--) {
+                        table[oldIndex][newIndex] = oldLines[oldIndex] === newLines[newIndex]
+                            ? table[oldIndex + 1][newIndex + 1] + 1
+                            : Math.max(table[oldIndex + 1][newIndex], table[oldIndex][newIndex + 1]);
+                    }
+                }
+                const rows = [];
+                let oldIndex = 0;
+                let newIndex = 0;
+                let oldLine = 1;
+                let newLine = 1;
+                while (oldIndex < oldLines.length || newIndex < newLines.length) {
+                    if (oldIndex < oldLines.length && newIndex < newLines.length && oldLines[oldIndex] === newLines[newIndex]) {
+                        rows.push({ kind: "context", text: oldLines[oldIndex], oldLine, newLine });
+                        oldIndex++; newIndex++; oldLine++; newLine++;
+                    } else if (newIndex < newLines.length && (oldIndex === oldLines.length || table[oldIndex][newIndex + 1] >= table[oldIndex + 1][newIndex])) {
+                        rows.push({ kind: "add", text: newLines[newIndex], oldLine: "", newLine });
+                        newIndex++; newLine++;
+                    } else {
+                        rows.push({ kind: "del", text: oldLines[oldIndex], oldLine, newLine: "" });
+                        oldIndex++; oldLine++;
+                    }
+                }
+                return rows;
+            }
+
+            function renderDiff(oldText, newText, oldLabel, newLabel) {
+                const rows = buildDiffRows(oldText, newText);
+                const lines = rows.map(row => {
+                    const prefix = row.kind === "add" ? "+" : (row.kind === "del" ? "−" : " ");
+                    return '<div class="history-diff-line diff-' + row.kind + '">' +
+                        '<span class="history-diff-number">' + row.oldLine + '</span>' +
+                        '<span class="history-diff-number">' + row.newLine + '</span>' +
+                        '<span class="history-diff-prefix">' + prefix + '</span>' +
+                        '<span>' + esc(row.text) + '</span></div>';
+                }).join("");
+                return '<div class="history-diff-label"><span>' + esc(oldLabel) + '</span><span>→</span><span>' + esc(newLabel) + '</span></div>' +
+                    '<div class="history-diff">' + (lines || '<div class="history-diff-line diff-context"><span></span><span></span><span></span><span>内容一致</span></div>') + '</div>' +
+                    '<button class="btn-text" id="historyBack">返回版本列表</button>';
+            }
+
+            function bindHistoryBack() {
+                const back = $("historyBack");
+                if (back) back.addEventListener("click", () => openHistoryModal(id));
+            }
+
+            try {
+                const result = await apiRequest("/entries/" + encodeURIComponent(id) + "/revisions?pageSize=50");
+                const revisions = result.revisions || [];
+                modalContainer.innerHTML = '<div class="modal-overlay" id="modalOverlay"><div class="modal history-modal"><div class="modal-header"><h3>历史版本</h3><button id="modalClose"><span class="material-symbols-rounded">close</span></button></div><div class="modal-body" id="historyBody"></div></div></div>';
+                const body = $("historyBody");
+                body.innerHTML = revisions.length ? revisions.map((r, index) => '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border-light)"><strong>v' + r.revision_no + (r.is_current ? '（当前）' : '') + '</strong><span style="flex:1;color:var(--text-secondary)">' + esc(new Date(r.created_at).toLocaleString("zh-CN")) + '</span><button class="btn-text history-view" data-rid="' + r.id + '">查看</button>' + (r.is_current ? '' : '<button class="btn-text history-compare" data-rid="' + r.id + '">与当前比较</button>' + (revisions[index + 1] ? '<button class="btn-text history-compare-prev" data-rid="' + r.id + '" data-prev-rid="' + revisions[index + 1].id + '">与上一版本比较</button>' : '') + '<button class="btn-primary history-restore" data-rid="' + r.id + '">恢复</button>') + '</div>').join('') : '<p>暂无历史版本</p>';
+                $("modalClose").addEventListener("click", () => { modalContainer.innerHTML = ""; });
+                body.querySelectorAll(".history-view").forEach(btn => btn.addEventListener("click", async () => {
+                    const detail = await apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.rid));
+                    body.innerHTML = '<pre style="white-space:pre-wrap;max-height:50vh;overflow:auto">' + esc(detail.revision.content || '') + '</pre><button class="btn-text" id="historyBack">返回版本列表</button>';
+                    $("historyBack").addEventListener("click", () => openHistoryModal(id));
+                }));
+                body.querySelectorAll(".history-restore").forEach(btn => btn.addEventListener("click", async () => {
+                    const entry = state.entries.find(x => x.id === id);
+                    if (!entry) return;
+                    try { await apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.rid) + "/restore", { method: "POST", body: JSON.stringify({ base_revision_id: entry.current_revision_id }) }); modalContainer.innerHTML = ""; fetchEntries(true, { keepVisible: true }); showToast("已恢复为新版本"); }
+                    catch (error) { showToast("恢复失败: " + error.message); }
+                }));
+                body.querySelectorAll(".history-compare").forEach(btn => btn.addEventListener("click", async () => {
+                    const detail = await apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.rid));
+                    const current = state.entries.find(x => x.id === id);
+                    body.innerHTML = renderDiff(detail.revision.content || '', current ? current.content : '', '历史 v' + detail.revision.revision_no, '当前版本');
+                    bindHistoryBack();
+                }));
+                body.querySelectorAll(".history-compare-prev").forEach(btn => btn.addEventListener("click", async () => {
+                    const [left, right] = await Promise.all([
+                        apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.rid)),
+                        apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.prevRid))
+                    ]);
+                    body.innerHTML = renderDiff(right.revision.content || '', left.revision.content || '', '上一版本 v' + right.revision.revision_no, 'v' + left.revision.revision_no);
+                    bindHistoryBack();
+                }));
+            } catch (error) { showToast("读取历史失败: " + error.message); }
         }
 
         // ===== Search (debounced) =====
@@ -4221,13 +4460,14 @@
                     return;
                 }
                 saveB.disabled = true;
+                let saved = false;
                 if (isEdit) {
-                    await updateEntry(entry.id, { title: finalTitle, content, tags: tagArr, type });
+                    saved = await updateEntry(entry.id, { title: finalTitle, content, tags: tagArr, type });
                 } else {
-                    await createEntry({ title: finalTitle, content, tags: tagArr, type });
+                    saved = await createEntry({ title: finalTitle, content, tags: tagArr, type });
                 }
                 saveB.disabled = false;
-                closeModal();
+                if (saved) closeModal();
             });
 
             setTimeout(() => contentI.focus(), 100);
@@ -4250,7 +4490,7 @@
                                 <span class="material-symbols-rounded">delete</span>
                             </div>
                             <p>确定要删除这条记录吗？</p>
-                            <p style="font-size:13px;color:var(--ink-muted)">此操作不可撤销</p>
+                            <p style="font-size:13px;color:var(--ink-muted)">笔记会先移入回收站，可随时恢复</p>
                         </div>
                         <div class="modal-footer">
                             <button class="btn-text" id="delCancel">取消</button>

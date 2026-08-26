@@ -263,18 +263,9 @@ async function importData(
     for (const entry of entries) {
       await client.query(
         `INSERT INTO thinkpad.entries(
-           id, user_id, title, content, tags, type, archived, archived_at, created_at, updated_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         ON CONFLICT (id) DO UPDATE SET
-           user_id = EXCLUDED.user_id,
-           title = EXCLUDED.title,
-           content = EXCLUDED.content,
-           tags = EXCLUDED.tags,
-           type = EXCLUDED.type,
-           archived = EXCLUDED.archived,
-           archived_at = EXCLUDED.archived_at,
-           created_at = EXCLUDED.created_at,
-           updated_at = EXCLUDED.updated_at`,
+           id, user_id, title, content, tags, type, archived, archived_at, created_at, updated_at, current_revision_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, md5($1::text || ':baseline')::uuid)
+         ON CONFLICT (id) DO NOTHING`,
         [
           entry.id,
           entry.user_id,
@@ -287,6 +278,13 @@ async function importData(
           entry.created_at,
           entry.updated_at,
         ],
+      );
+      await client.query(
+        `INSERT INTO thinkpad.entry_revisions(
+           id, entry_id, revision_no, title, content, tags, type, created_at, change_message
+         ) VALUES (md5($1::text || ':baseline')::uuid, $1, 1, $2, $3, $4, $5, $6, 'Supabase 迁移基线')
+         ON CONFLICT (entry_id, revision_no) DO NOTHING`,
+        [entry.id, entry.title, rewriteContent(entry.content, images), entry.tags, entry.type, entry.updated_at],
       );
     }
     await client.query('COMMIT');

@@ -78,7 +78,23 @@ function mediaUrl(basePath: string, key: string): string {
 }
 
 function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function sameTags(left: unknown, right: unknown): boolean {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+  const leftTags = left.map(String).sort();
+  const rightTags = right.map(String).sort();
+  return leftTags.every((tag, index) => tag === rightTags[index]);
+}
+
+function sameEntryContent(entry: Record<string, unknown>, next: { title: string; content: string; tags: string[]; type: string }): boolean {
+  return entry.title === next.title && entry.content === next.content
+    && sameTags(entry.tags, next.tags) && entry.type === next.type;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && (error as { code?: string }).code === '23505');
 }
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
@@ -243,11 +259,17 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     const query = request.query as Record<string, string | undefined>;
     const page = Math.max(0, Number.parseInt(query.page ?? '0', 10) || 0);
     const pageSize = Math.min(100, Math.max(1, Number.parseInt(query.pageSize ?? '20', 10) || 20));
+    const deleted = query.deleted === 'true';
     const values: unknown[] = [user.id];
     const conditions = ['user_id = $1'];
-    const archived = query.archived === 'true';
-    values.push(archived);
-    conditions.push(`archived = $${values.length}`);
+    if (deleted) {
+      conditions.push('deleted_at IS NOT NULL');
+    } else {
+      conditions.push('deleted_at IS NULL');
+      const archived = query.archived === 'true';
+      values.push(archived);
+      conditions.push(`archived = $${values.length}`);
+    }
     if (query.type && ENTRY_TYPES.has(query.type)) {
       values.push(query.type);
       conditions.push(`type = $${values.length}`);
@@ -262,10 +284,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     }
     values.push(pageSize + 1, page * pageSize);
     const result = await pool.query(
-      `SELECT id, user_id, title, content, tags, type, archived, archived_at, created_at, updated_at
+      `SELECT id, user_id, title, content, tags, type, archived, archived_at,
+              pinned_at, current_revision_id, deleted_at, created_at, updated_at
          FROM thinkpad.entries
-        WHERE ${conditions.join(' AND ')}
-        ORDER BY created_at DESC
+         WHERE ${conditions.join(' AND ')}
+        ORDER BY ${deleted ? 'deleted_at DESC' : 'pinned_at DESC NULLS LAST, created_at DESC'}, id DESC
         LIMIT $${values.length - 1} OFFSET $${values.length}`,
       values,
     );
@@ -276,10 +299,98 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     const user = await requireUser(request, reply, pool);
     if (!user) return;
     const result = await pool.query<{ count: string }>(
-      'SELECT count(*)::text AS count FROM thinkpad.entries WHERE user_id = $1 AND archived = true',
+      'SELECT count(*)::text AS count FROM thinkpad.entries WHERE user_id = $1 AND archived = true AND deleted_at IS NULL',
       [user.id],
     );
     return { count: Number(result.rows[0]?.count ?? 0) };
+  });
+
+  app.get('/api/entries/:id/revisions', async (request, reply) => {
+    const user = await requireUser(request, reply, pool);
+    if (!user) return;
+    const id = (request.params as { id: string }).id;
+    if (!isUuid(id)) return reply.code(400).send({ error: '笔记 ID 无效。', code: 'invalid_entry_id' });
+    const query = request.query as Record<string, string | undefined>;
+    const page = Math.max(0, Number.parseInt(query.page ?? '0', 10) || 0);
+    const pageSize = Math.min(50, Math.max(1, Number.parseInt(query.pageSize ?? '20', 10) || 20));
+    const result = await pool.query(
+      `SELECT r.id, r.entry_id, r.revision_no, r.title, r.content, r.tags, r.type,
+              r.created_at, r.change_message, r.restored_from_revision_id,
+              (r.id = e.current_revision_id) AS is_current
+         FROM thinkpad.entry_revisions r
+         JOIN thinkpad.entries e ON e.id = r.entry_id
+        WHERE e.id = $1 AND e.user_id = $2
+        ORDER BY r.revision_no DESC
+        LIMIT $3 OFFSET $4`,
+      [id, user.id, pageSize + 1, page * pageSize],
+    );
+    return { revisions: result.rows.slice(0, pageSize), hasMore: result.rows.length > pageSize };
+  });
+
+  app.get('/api/entries/:id/revisions/:revisionId', async (request, reply) => {
+    const user = await requireUser(request, reply, pool);
+    if (!user) return;
+    const params = request.params as { id: string; revisionId: string };
+    if (!isUuid(params.id) || !isUuid(params.revisionId)) {
+      return reply.code(400).send({ error: '版本 ID 无效。', code: 'invalid_revision_id' });
+    }
+    const result = await pool.query(
+      `SELECT r.id, r.entry_id, r.revision_no, r.title, r.content, r.tags, r.type,
+              r.created_at, r.change_message, r.restored_from_revision_id,
+              (r.id = e.current_revision_id) AS is_current
+         FROM thinkpad.entry_revisions r
+         JOIN thinkpad.entries e ON e.id = r.entry_id
+        WHERE r.entry_id = $1 AND r.id = $2 AND e.user_id = $3`,
+      [params.id, params.revisionId, user.id],
+    );
+    if (!result.rows[0]) return reply.code(404).send({ error: '历史版本不存在。', code: 'revision_not_found' });
+    return { revision: result.rows[0] };
+  });
+
+  app.post('/api/entries/:id/revisions/:revisionId/restore', async (request, reply) => {
+    const user = await requireUser(request, reply, pool);
+    if (!user) return;
+    const params = request.params as { id: string; revisionId: string };
+    const body = objectBody(request.body);
+    const baseRevisionId = typeof body.base_revision_id === 'string' ? body.base_revision_id : '';
+    if (!isUuid(params.id) || !isUuid(params.revisionId) || !isUuid(baseRevisionId)) {
+      return reply.code(400).send({ error: '恢复参数无效。', code: 'invalid_revision_id' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const entryResult = await client.query(
+        `SELECT * FROM thinkpad.entries WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL FOR UPDATE`, [params.id, user.id]);
+      const entry = entryResult.rows[0] as Record<string, unknown> | undefined;
+      if (!entry) { await client.query('ROLLBACK'); return reply.code(404).send({ error: '笔记不存在。', code: 'entry_not_found' }); }
+      if (entry.current_revision_id !== baseRevisionId) {
+        await client.query('ROLLBACK');
+        return reply.code(409).send({ error: '笔记已被其他设备修改。', code: 'entry_conflict', entry });
+      }
+      const sourceResult = await client.query(
+        `SELECT id, revision_no, title, content, tags, type FROM thinkpad.entry_revisions WHERE entry_id = $1 AND id = $2`,
+        [params.id, params.revisionId]);
+      const source = sourceResult.rows[0];
+      if (!source) { await client.query('ROLLBACK'); return reply.code(404).send({ error: '历史版本不存在。', code: 'revision_not_found' }); }
+      const nextRevisionId = newId();
+      const nextNoResult = await client.query<{ next_no: number }>(
+        'SELECT COALESCE(MAX(revision_no), 0) + 1 AS next_no FROM thinkpad.entry_revisions WHERE entry_id = $1', [params.id]);
+      const nextNo = nextNoResult.rows[0].next_no;
+      await client.query(
+        `INSERT INTO thinkpad.entry_revisions(id, entry_id, revision_no, title, content, tags, type, change_message, restored_from_revision_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [nextRevisionId, params.id, nextNo, source.title, source.content, source.tags, source.type, `恢复自 v${source.revision_no}`, source.id]);
+      const updated = await client.query(
+        `UPDATE thinkpad.entries SET title = $1, content = $2, tags = $3, type = $4, current_revision_id = $5
+          WHERE id = $6 AND user_id = $7 RETURNING *`,
+        [source.title, source.content, source.tags, source.type, nextRevisionId, params.id, user.id]);
+      await client.query('COMMIT');
+      return { entry: updated.rows[0], revision: { id: nextRevisionId, revision_no: nextNo } };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (isUniqueViolation(error)) return reply.code(409).send({ error: '版本号冲突，请重试。', code: 'revision_conflict' });
+      throw error;
+    } finally { client.release(); }
   });
 
   app.post('/api/entries', async (request, reply) => {
@@ -293,13 +404,31 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     if (title === null || content === null || tags === null || !ENTRY_TYPES.has(type)) {
       return reply.code(400).send({ error: '笔记内容格式不正确。', code: 'invalid_entry' });
     }
-    const result = await pool.query(
-      `INSERT INTO thinkpad.entries(id, user_id, title, content, tags, type)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [newId(), user.id, title, content, tags, type],
-    );
-    return reply.code(201).send({ entry: result.rows[0] });
+    const entryId = newId();
+    const revisionId = newId();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO thinkpad.entries(id, user_id, title, content, tags, type, current_revision_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [entryId, user.id, title, content, tags, type, revisionId],
+      );
+      await client.query(
+        `INSERT INTO thinkpad.entry_revisions(
+           id, entry_id, revision_no, title, content, tags, type, change_message
+         ) VALUES ($1, $2, 1, $3, $4, $5, $6, $7)`,
+        [revisionId, entryId, title, content, tags, type, '创建笔记'],
+      );
+      await client.query('COMMIT');
+      return reply.code(201).send({ entry: result.rows[0] });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   });
 
   app.patch('/api/entries/:id', async (request, reply) => {
@@ -308,45 +437,112 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     const id = (request.params as { id: string }).id;
     if (!isUuid(id)) return reply.code(400).send({ error: '笔记 ID 无效。', code: 'invalid_entry_id' });
     const body = objectBody(request.body);
-    const assignments: string[] = [];
-    const values: unknown[] = [];
-    const add = (column: string, value: unknown) => {
-      values.push(value);
-      assignments.push(`${column} = $${values.length}`);
-    };
+    const hasContentFields = ['title', 'content', 'tags', 'type'].some((field) => field in body);
+    const baseRevisionId = typeof body.base_revision_id === 'string' ? body.base_revision_id : '';
+    if (hasContentFields && !isUuid(baseRevisionId)) {
+      return reply.code(400).send({ error: '保存操作缺少当前版本。', code: 'base_revision_required' });
+    }
+    let nextTitle: string | undefined;
+    let nextContent: string | undefined;
+    let nextTags: string[] | undefined;
+    let nextType: string | undefined;
+    let nextArchived: boolean | undefined;
+    let nextPinnedAt: Date | null | undefined;
     if ('title' in body) {
       const title = cleanString(body.title, 500);
       if (title === null) return reply.code(400).send({ error: '标题格式不正确。', code: 'invalid_entry' });
-      add('title', title);
+      nextTitle = title;
     }
     if ('content' in body) {
       if (typeof body.content !== 'string' || body.content.length > 2_000_000) return reply.code(400).send({ error: '正文格式不正确。', code: 'invalid_entry' });
-      add('content', body.content);
+      nextContent = body.content;
     }
     if ('tags' in body) {
       const tags = cleanTags(body.tags);
       if (!tags) return reply.code(400).send({ error: '标签格式不正确。', code: 'invalid_entry' });
-      add('tags', tags);
+      nextTags = tags;
     }
     if ('type' in body) {
       if (typeof body.type !== 'string' || !ENTRY_TYPES.has(body.type)) return reply.code(400).send({ error: '笔记类型无效。', code: 'invalid_entry' });
-      add('type', body.type);
+      nextType = body.type;
     }
     if ('archived' in body) {
       if (typeof body.archived !== 'boolean') return reply.code(400).send({ error: '归档状态无效。', code: 'invalid_entry' });
-      add('archived', body.archived);
-      add('archived_at', body.archived ? new Date() : null);
+      nextArchived = body.archived;
     }
-    if (!assignments.length) return reply.code(400).send({ error: '没有可更新的内容。', code: 'empty_update' });
-    values.push(id, user.id);
-    const result = await pool.query(
-      `UPDATE thinkpad.entries SET ${assignments.join(', ')}
-        WHERE id = $${values.length - 1} AND user_id = $${values.length}
-        RETURNING *`,
-      values,
-    );
-    if (!result.rows[0]) return reply.code(404).send({ error: '笔记不存在。', code: 'entry_not_found' });
-    return { entry: result.rows[0] };
+    if ('pinned' in body) {
+      if (typeof body.pinned !== 'boolean') return reply.code(400).send({ error: '置顶状态无效。', code: 'invalid_entry' });
+      nextPinnedAt = body.pinned ? new Date() : null;
+    }
+    if (!hasContentFields && nextArchived === undefined && nextPinnedAt === undefined) {
+      return reply.code(400).send({ error: '没有可更新的内容。', code: 'empty_update' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const currentResult = await client.query(
+        'SELECT * FROM thinkpad.entries WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL FOR UPDATE',
+        [id, user.id],
+      );
+      const entry = currentResult.rows[0] as Record<string, unknown> | undefined;
+      if (!entry) {
+        await client.query('ROLLBACK');
+        return reply.code(404).send({ error: '笔记不存在。', code: 'entry_not_found' });
+      }
+      if (hasContentFields && entry.current_revision_id !== baseRevisionId) {
+        await client.query('ROLLBACK');
+        return reply.code(409).send({ error: '笔记已被其他设备修改。', code: 'entry_conflict', entry });
+      }
+      const next = {
+        title: nextTitle ?? String(entry.title ?? ''),
+        content: nextContent ?? String(entry.content ?? ''),
+        tags: nextTags ?? (Array.isArray(entry.tags) ? entry.tags as string[] : []),
+        type: nextType ?? String(entry.type ?? 'note'),
+      };
+      const contentChanged = hasContentFields && !sameEntryContent(entry, next);
+      const assignments: string[] = [];
+      const values: unknown[] = [];
+      const add = (column: string, value: unknown) => { values.push(value); assignments.push(`${column} = $${values.length}`); };
+      if (contentChanged) {
+        const nextRevisionId = newId();
+        const nextNoResult = await client.query<{ next_no: number }>(
+          'SELECT COALESCE(MAX(revision_no), 0) + 1 AS next_no FROM thinkpad.entry_revisions WHERE entry_id = $1', [id]);
+        const nextNo = nextNoResult.rows[0].next_no;
+        await client.query(
+          `INSERT INTO thinkpad.entry_revisions(id, entry_id, revision_no, title, content, tags, type, change_message)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [nextRevisionId, id, nextNo, next.title, next.content, next.tags, next.type,
+            typeof body.change_message === 'string' ? body.change_message.slice(0, 200) : '编辑笔记'],
+        );
+        add('title', next.title); add('content', next.content); add('tags', next.tags); add('type', next.type); add('current_revision_id', nextRevisionId);
+      }
+      if (nextArchived !== undefined) {
+        add('archived', nextArchived); add('archived_at', nextArchived ? new Date() : null);
+        if (nextArchived) add('pinned_at', null);
+      }
+      if (nextPinnedAt !== undefined) {
+        if (nextPinnedAt && (entry.archived || nextArchived === true)) {
+          await client.query('ROLLBACK');
+          return reply.code(409).send({ error: '归档笔记不能置顶。', code: 'archived_entry' });
+        }
+        add('pinned_at', nextPinnedAt);
+      }
+      if (!assignments.length) {
+        await client.query('ROLLBACK');
+        return { entry };
+      }
+      values.push(id, user.id);
+      const result = await client.query(
+        `UPDATE thinkpad.entries SET ${assignments.join(', ')}
+          WHERE id = $${values.length - 1} AND user_id = $${values.length}
+          RETURNING *`, values);
+      await client.query('COMMIT');
+      return { entry: result.rows[0] };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (isUniqueViolation(error)) return reply.code(409).send({ error: '版本号冲突，请重试。', code: 'revision_conflict' });
+      throw error;
+    } finally { client.release(); }
   });
 
   app.delete('/api/entries/:id', async (request, reply) => {
@@ -355,10 +551,34 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     const id = (request.params as { id: string }).id;
     if (!isUuid(id)) return reply.code(400).send({ error: '笔记 ID 无效。', code: 'invalid_entry_id' });
     const result = await pool.query(
-      'DELETE FROM thinkpad.entries WHERE id = $1 AND user_id = $2 RETURNING id',
+      `UPDATE thinkpad.entries SET deleted_at = now(), pinned_at = NULL
+        WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL RETURNING id`,
       [id, user.id],
     );
     if (!result.rows[0]) return reply.code(404).send({ error: '笔记不存在。', code: 'entry_not_found' });
+    return { ok: true };
+  });
+
+  app.post('/api/entries/:id/restore-deleted', async (request, reply) => {
+    const user = await requireUser(request, reply, pool);
+    if (!user) return;
+    const id = (request.params as { id: string }).id;
+    if (!isUuid(id)) return reply.code(400).send({ error: '笔记 ID 无效。', code: 'invalid_entry_id' });
+    const result = await pool.query(
+      `UPDATE thinkpad.entries SET deleted_at = NULL
+        WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL RETURNING *`, [id, user.id]);
+    if (!result.rows[0]) return reply.code(404).send({ error: '回收站中没有这条笔记。', code: 'entry_not_found' });
+    return { entry: result.rows[0] };
+  });
+
+  app.delete('/api/entries/:id/permanent', async (request, reply) => {
+    const user = await requireUser(request, reply, pool);
+    if (!user) return;
+    const id = (request.params as { id: string }).id;
+    if (!isUuid(id)) return reply.code(400).send({ error: '笔记 ID 无效。', code: 'invalid_entry_id' });
+    const result = await pool.query(
+      'DELETE FROM thinkpad.entries WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL RETURNING id', [id, user.id]);
+    if (!result.rows[0]) return reply.code(404).send({ error: '回收站中没有这条笔记。', code: 'entry_not_found' });
     return { ok: true };
   });
 
