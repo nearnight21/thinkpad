@@ -6,7 +6,7 @@ services:
       context: ..
     restart: unless-stopped
     env_file:
-      - ${MEMORY_RECALL_ENV_FILE:-../../../../memory-recall-server/deploy/.env}
+      - ${MEMORY_RECALL_ENV_FILE:-../../../memorae/server/deploy/.env}
     environment:
       THINKPAD_HOST: 0.0.0.0
       THINKPAD_PORT: 8790
