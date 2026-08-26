@@ -44,3 +44,5 @@ DEEPSEEK_MODEL=deepseek-chat
 ```
 
 密钥只放服务器的忽略文件中，不提交到 Git。
+
+`deploy/install-deepseek-key.sh` 用于从临时环境文件中只提取 DeepSeek 密钥，安装前会备份目标环境文件并在完成后删除临时源文件。`deploy/verify-deepseek.mjs` 只执行一个最小请求并输出 HTTP 状态，不输出密钥或回答内容。
