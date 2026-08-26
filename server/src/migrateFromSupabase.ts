@@ -72,7 +72,7 @@ function cleanEnvValue(raw: string): string {
 }
 
 async function migrationEnvironment(): Promise<MigrationEnvironment> {
-  const envPath = resolve(option('source-env') ?? '../.env');
+  const envPath = resolve(option('source-env') ?? '../../../.env');
   const text = await readFile(envPath, 'utf8');
   const parsed: Record<string, string> = {};
   for (const line of text.split(/\r?\n/)) {
@@ -91,7 +91,7 @@ async function migrationEnvironment(): Promise<MigrationEnvironment> {
     if (process.env[name]?.trim()) parsed[name] = cleanEnvValue(process.env[name] ?? '');
   }
   if (!/^[0-9a-f]{32}$/i.test(parsed.R2_ACCOUNT_ID ?? '')) {
-    const wranglerPath = resolve(option('wrangler') ?? '../wrangler.toml');
+    const wranglerPath = resolve(option('wrangler') ?? '../../../wrangler.toml');
     const wrangler = await readFile(wranglerPath, 'utf8');
     const account = wrangler.match(/^\s*account_id\s*=\s*["']([0-9a-f]{32})["']\s*$/im)?.[1];
     if (account) {

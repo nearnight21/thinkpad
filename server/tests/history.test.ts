@@ -21,7 +21,7 @@ test('服务端提供历史、恢复、置顶和软删除接口', async () => {
 });
 
 test('历史入口使用稳定图标并提供 GitHub 风格逐行差异', async () => {
-  const source = await readFile(new URL('../../app.html', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../../web/app.html', import.meta.url), 'utf8');
   assert.match(source, /class="history-glyph"/);
   assert.match(source, /diff-add/);
   assert.match(source, /diff-del/);
