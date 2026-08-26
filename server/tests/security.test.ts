@@ -80,6 +80,18 @@ test('登录签发安全 Cookie，写请求拒绝错误来源', async () => {
     });
     assert.equal(denied.statusCode, 403);
 
+    const malformed = await app.inject({
+      method: 'POST',
+      url: '/api/login',
+      headers: {
+        origin: 'https://memorae.cn',
+        'content-type': 'application/json',
+      },
+      payload: '{',
+    });
+    assert.equal(malformed.statusCode, 400);
+    assert.equal(malformed.json().code, 'invalid_request');
+
     const response = await app.inject({
       method: 'POST',
       url: '/api/login',

@@ -476,9 +476,14 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   app.setErrorHandler((error, request, reply) => {
-    request.log.error(error);
-    if ((error as { statusCode?: number }).statusCode === 429) {
+    const statusCode = (error as { statusCode?: number }).statusCode;
+    if (statusCode && statusCode >= 400 && statusCode < 500) request.log.warn(error);
+    else request.log.error(error);
+    if (statusCode === 429) {
       return reply.code(429).send({ error: '请求过于频繁，请稍后重试。', code: 'rate_limited' });
+    }
+    if (statusCode && statusCode >= 400 && statusCode < 500) {
+      return reply.code(statusCode).send({ error: '请求格式不正确。', code: 'invalid_request' });
     }
     return reply.code(500).send({ error: '服务器暂时无法处理请求。', code: 'internal_error' });
   });

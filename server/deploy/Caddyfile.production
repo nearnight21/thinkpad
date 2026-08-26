@@ -1,0 +1,30 @@
+memorae.cn {
+    encode zstd gzip
+
+    redir /thinkpad /thinkpad/ 308
+
+    handle /thinkpad/api/* {
+        uri strip_prefix /thinkpad
+        reverse_proxy 127.0.0.1:8790
+    }
+
+    handle_path /thinkpad/* {
+        root * /var/www/memorae/thinkpad
+        try_files {path} /index.html
+        file_server
+    }
+
+    handle /v1/* {
+        reverse_proxy 127.0.0.1:8788
+    }
+
+    handle /health {
+        reverse_proxy 127.0.0.1:8788
+    }
+
+    handle {
+        root * /var/www/memorae
+        try_files {path} /index.html
+        file_server
+    }
+}

@@ -19,6 +19,20 @@ npm run migrate:source
 
 `migrate:source` 默认只读预演。只有显式追加 `-- --apply` 才会写入目标 PostgreSQL 和 COS。
 
+迁移脚本默认读取仓库根目录 `.env`：
+
+```text
+SUPABASE_DB_URL=...
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET=...
+```
+
+旧 Worker 域名不可用时，脚本直接通过 R2 的 S3 接口读取正文引用的对象。若
+`R2_ACCOUNT_ID` 不是 Cloudflare 的 32 位项目 ID，会从同仓库 `wrangler.toml`
+读取公开的 `account_id`；R2 Access Key、Secret 和 Bucket 不使用其他来源。
+
 ## 运行环境变量
 
 服务优先读取 `THINKPAD_*`，COS 和数据库变量缺省时复用服务器已有的
