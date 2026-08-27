@@ -1,6 +1,6 @@
 # ThinkPad 国内独立服务
 
-此目录只承载 `master` 时代的 ThinkPad 笔记，不包含 Camp Memories。
+此目录只承载 ThinkPad 的笔记服务与独立部署配置。
 
 ## 数据边界
 
@@ -19,7 +19,7 @@ npm run migrate:source
 
 `migrate:source` 默认只读预演。只有显式追加 `-- --apply` 才会写入目标 PostgreSQL 和 COS。
 
-迁移脚本默认读取仓库根目录 `.env`：
+迁移脚本只读取当前进程中显式注入的一次性变量：
 
 ```text
 SUPABASE_DB_URL=...
@@ -27,22 +27,25 @@ R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=...
+THINKPAD_SOURCE_WORKER_HOST=...
 ```
 
-旧 Worker 域名不可用时，脚本直接通过 R2 的 S3 接口读取正文引用的对象。若
-`R2_ACCOUNT_ID` 不是 Cloudflare 的 32 位项目 ID，会从同仓库 `wrangler.toml`
-读取公开的 `account_id`；R2 Access Key、Secret 和 Bucket 不使用其他来源。
+脚本直接通过 R2 的 S3 接口读取正文引用的对象。`R2_ACCOUNT_ID` 和源图片 Worker 主机名
+必须显式提供，脚本不会从其他仓库、`.env` 文件或 Wrangler 配置读取值。
 
 ## 运行环境变量
 
-服务优先读取 `THINKPAD_*`，COS 和数据库变量缺省时复用服务器已有的
-`MEMORY_RECALL_DATABASE_URL` 与 `MEMORY_RECALL_COS_*`。DeepSeek 需要单独提供：
+服务只读取 `THINKPAD_*` 和 `DEEPSEEK_*`。数据库、站点来源和四项 COS 配置都必须显式提供。
+DeepSeek 需要单独提供：
 
 ```text
 DEEPSEEK_API_KEY=...
 DEEPSEEK_MODEL=deepseek-chat
 ```
 
-密钥只放服务器的忽略文件中，不提交到 Git。
+密钥只放服务器的忽略文件或部署密钥管理中，不提交到 Git。
+
+Compose 从 `server/deploy/.env` 读取 ThinkPad 专属环境；该文件不提交到 Git。生产 Caddy
+需要在启动进程中显式提供 `THINKPAD_SITE_DOMAIN`，并使用本目录的 ThinkPad 专属站点配置。
 
 `deploy/install-deepseek-key.sh` 用于从临时环境文件中只提取 DeepSeek 密钥，安装前会备份目标环境文件并在完成后删除临时源文件。`deploy/verify-deepseek.mjs` 只执行一个最小请求并输出 HTTP 状态，不输出密钥或回答内容。

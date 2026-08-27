@@ -61,7 +61,7 @@ test('登录签发安全 Cookie，写请求拒绝错误来源', async () => {
     host: '127.0.0.1',
     port: 8790,
     databaseUrl: 'postgres://unused',
-    siteOrigin: 'https://memorae.cn',
+    siteOrigin: 'https://thinkpad.example.test',
     basePath: '/thinkpad',
     sessionDays: 30,
     cosBucket: 'bucket-123',
@@ -84,7 +84,7 @@ test('登录签发安全 Cookie，写请求拒绝错误来源', async () => {
       method: 'POST',
       url: '/api/login',
       headers: {
-        origin: 'https://memorae.cn',
+        origin: 'https://thinkpad.example.test',
         'content-type': 'application/json',
       },
       payload: '{',
@@ -95,7 +95,7 @@ test('登录签发安全 Cookie，写请求拒绝错误来源', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/login',
-      headers: { origin: 'https://memorae.cn' },
+      headers: { origin: 'https://thinkpad.example.test' },
       payload: { email: 'owner@example.com', password },
     });
     assert.equal(response.statusCode, 200);

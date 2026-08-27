@@ -6,11 +6,11 @@ services:
       context: ..
     restart: unless-stopped
     env_file:
-      - ${MEMORY_RECALL_ENV_FILE:-../../../memorae/server/deploy/.env}
+      - path: .env
+        required: true
     environment:
       THINKPAD_HOST: 0.0.0.0
       THINKPAD_PORT: 8790
-      THINKPAD_SITE_ORIGIN: https://memorae.cn
       THINKPAD_BASE_PATH: /thinkpad
       THINKPAD_SESSION_DAYS: 30
     ports:

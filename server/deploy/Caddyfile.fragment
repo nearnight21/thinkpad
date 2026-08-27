@@ -6,7 +6,7 @@ handle /thinkpad/api/* {
 }
 
 handle_path /thinkpad/* {
-    root * /var/www/memorae/thinkpad
+    root * /var/www/thinkpad
     try_files {path} /index.html
     file_server
 }

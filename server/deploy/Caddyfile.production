@@ -1,4 +1,4 @@
-memorae.cn {
+{$THINKPAD_SITE_DOMAIN} {
     encode zstd gzip
 
     redir /thinkpad /thinkpad/ 308
@@ -9,22 +9,9 @@ memorae.cn {
     }
 
     handle_path /thinkpad/* {
-        root * /var/www/memorae/thinkpad
+        root * /var/www/thinkpad
         try_files {path} /index.html
         file_server
     }
 
-    handle /v1/* {
-        reverse_proxy 127.0.0.1:8788
-    }
-
-    handle /health {
-        reverse_proxy 127.0.0.1:8788
-    }
-
-    handle {
-        root * /var/www/memorae
-        try_files {path} /index.html
-        file_server
-    }
 }

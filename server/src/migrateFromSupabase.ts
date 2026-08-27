@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { extname, resolve } from 'node:path';
+import { extname } from 'node:path';
 import { GetObjectCommand, S3Client, type GetObjectCommandOutput } from '@aws-sdk/client-s3';
 import pg from 'pg';
 import { ThinkPadCos } from './cos.ts';
@@ -9,7 +8,6 @@ import { applyMigrations, createDatabasePool, type DatabasePool } from './databa
 import { sha256 } from './security.ts';
 
 const { Pool } = pg;
-const WORKER_HOST = 'personandb-upload.xiaobai1423.workers.dev';
 const MARKDOWN_IMAGE = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)(?:\s+["'][^"']*["'])?\)/g;
 
 interface SourceUser {
@@ -49,16 +47,12 @@ interface MigrationEnvironment {
   R2_ACCESS_KEY_ID?: string;
   R2_SECRET_ACCESS_KEY?: string;
   R2_BUCKET?: string;
+  THINKPAD_SOURCE_WORKER_HOST?: string;
 }
 
 interface R2Source {
   client: S3Client;
   bucket: string;
-}
-
-function option(name: string): string | undefined {
-  const prefix = `--${name}=`;
-  return process.argv.find((argument) => argument.startsWith(prefix))?.slice(prefix.length);
 }
 
 function cleanDatabaseUrl(raw: string): string {
@@ -71,14 +65,8 @@ function cleanEnvValue(raw: string): string {
   return raw.trim().replace(/^[\s'"`\u2018\u2019\u201c\u201d]+|[\s'"`\u2018\u2019\u201c\u201d]+$/g, '');
 }
 
-async function migrationEnvironment(): Promise<MigrationEnvironment> {
-  const envPath = resolve(option('source-env') ?? '../../../.env');
-  const text = await readFile(envPath, 'utf8');
-  const parsed: Record<string, string> = {};
-  for (const line of text.split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
-    if (match?.[1] && match[2] !== undefined) parsed[match[1]] = cleanEnvValue(match[2]);
-  }
+function migrationEnvironment(): MigrationEnvironment {
+  const parsed: MigrationEnvironment = {};
   const names = [
     'SUPABASE_DB_URL',
     'THINKPAD_SOURCE_DATABASE_URL',
@@ -86,18 +74,10 @@ async function migrationEnvironment(): Promise<MigrationEnvironment> {
     'R2_ACCESS_KEY_ID',
     'R2_SECRET_ACCESS_KEY',
     'R2_BUCKET',
+    'THINKPAD_SOURCE_WORKER_HOST',
   ] as const;
   for (const name of names) {
     if (process.env[name]?.trim()) parsed[name] = cleanEnvValue(process.env[name] ?? '');
-  }
-  if (!/^[0-9a-f]{32}$/i.test(parsed.R2_ACCOUNT_ID ?? '')) {
-    const wranglerPath = resolve(option('wrangler') ?? '../../../wrangler.toml');
-    const wrangler = await readFile(wranglerPath, 'utf8');
-    const account = wrangler.match(/^\s*account_id\s*=\s*["']([0-9a-f]{32})["']\s*$/im)?.[1];
-    if (account) {
-      parsed.R2_ACCOUNT_ID = account;
-      console.log('已从 wrangler.toml 读取 R2 Account ID。');
-    }
   }
   return parsed;
 }
@@ -130,13 +110,13 @@ function r2Source(environment: MigrationEnvironment): R2Source {
   };
 }
 
-function imageUrls(entries: SourceEntry[]): string[] {
+function imageUrls(entries: SourceEntry[], workerHost: string): string[] {
   const urls = new Set<string>();
   for (const entry of entries) {
     for (const match of entry.content.matchAll(MARKDOWN_IMAGE)) {
       try {
         const parsed = new URL(match[1]);
-        if (parsed.protocol === 'https:' && parsed.hostname === WORKER_HOST) {
+        if (parsed.protocol === 'https:' && parsed.hostname === workerHost) {
           urls.add(parsed.toString());
         }
       } catch {
@@ -299,7 +279,11 @@ async function importData(
 const apply = process.argv.includes('--apply');
 
 async function main(): Promise<void> {
-  const environment = await migrationEnvironment();
+  const environment = migrationEnvironment();
+  const workerHost = environment.THINKPAD_SOURCE_WORKER_HOST?.trim().toLowerCase();
+  if (!workerHost || workerHost.includes('/') || workerHost.includes(':')) {
+    throw new Error('找不到有效的 THINKPAD_SOURCE_WORKER_HOST。');
+  }
   const sourceR2 = r2Source(environment);
   const sourcePool = new Pool({
     connectionString: sourceDatabaseUrl(environment),
@@ -326,7 +310,7 @@ async function main(): Promise<void> {
   if (entryResult.rows.some((entry) => !userIds.has(entry.user_id))) {
     throw new Error('源笔记存在无法对应的账号。');
   }
-  const urls = imageUrls(entryResult.rows);
+  const urls = imageUrls(entryResult.rows, workerHost);
   const primaryUserId = userResult.rows[0].id;
   const basePath = process.env.THINKPAD_BASE_PATH?.trim().replace(/\/+$/, '') || '/thinkpad';
   const images = await downloadImages(urls, primaryUserId, basePath, sourceR2);

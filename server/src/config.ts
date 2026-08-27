@@ -36,17 +36,14 @@ export function loadConfig(): ThinkPadConfig {
   return {
     host: value('THINKPAD_HOST', '127.0.0.1'),
     port: positiveInteger('THINKPAD_PORT', 8790),
-    databaseUrl: required(
-      'THINKPAD_DATABASE_URL',
-      value('MEMORY_RECALL_DATABASE_URL'),
-    ),
-    siteOrigin: required('THINKPAD_SITE_ORIGIN', 'https://memorae.cn').replace(/\/+$/, ''),
+    databaseUrl: required('THINKPAD_DATABASE_URL'),
+    siteOrigin: required('THINKPAD_SITE_ORIGIN').replace(/\/+$/, ''),
     basePath,
     sessionDays: positiveInteger('THINKPAD_SESSION_DAYS', 30),
-    cosBucket: required('THINKPAD_COS_BUCKET', value('MEMORY_RECALL_COS_BUCKET')),
-    cosRegion: required('THINKPAD_COS_REGION', value('MEMORY_RECALL_COS_REGION')),
-    cosSecretId: required('THINKPAD_COS_SECRET_ID', value('MEMORY_RECALL_COS_SECRET_ID')),
-    cosSecretKey: required('THINKPAD_COS_SECRET_KEY', value('MEMORY_RECALL_COS_SECRET_KEY')),
+    cosBucket: required('THINKPAD_COS_BUCKET'),
+    cosRegion: required('THINKPAD_COS_REGION'),
+    cosSecretId: required('THINKPAD_COS_SECRET_ID'),
+    cosSecretKey: required('THINKPAD_COS_SECRET_KEY'),
     deepSeekApiKey: value('DEEPSEEK_API_KEY'),
     deepSeekModel: value('DEEPSEEK_MODEL', 'deepseek-chat'),
   };
