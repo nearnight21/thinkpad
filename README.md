@@ -1,16 +1,26 @@
 # ThinkPad
 
-ThinkPad 的代码和历史资源集中在本目录：
+这是 ThinkPad 的独立仓库：
 
 - `web/`：静态 Web 客户端与其 vendor 资源。
 - `server/`：Node.js 服务端、测试与部署配置。
 - `legacy/`：只用于追溯或迁移的旧 Supabase schema。
+- `docs/`：开发交接和环境变量清单。
+- `scripts/`：仓库同步和后续仓库级检查脚本。
 
-仓库根目录的 `worker.js`、`wrangler.toml` 和 `vercel.json` 仍包含 ThinkPad 与 Camp Memories 共用的历史生产部署配置，因此第一期不移动它们。
+当前仓库尚未绑定新的 GitHub 远端；本地 `origin` 只用于迁移验证。新的 Vercel、Worker
+和 Wrangler 配置将在 Phase 5 的部署阶段单独重建。
 
 服务端验证：
 
 ```powershell
-cd projects/thinkpad/server
+cd server
 npm run verify
+```
+
+跨电脑交接前运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\sync-canonical-worktree.ps1 `
+  -CanonicalBranch codex/cos-direct-transfer
 ```

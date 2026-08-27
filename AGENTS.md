@@ -1,16 +1,25 @@
-# ThinkPad 产品边界
+# ThinkPad 仓库工作约束
 
-本目录只承载 ThinkPad Web、Server 及其产品专属部署资料。
+本仓库只承载 ThinkPad Web、Server、迁移资料和 ThinkPad 专属部署配置。它已经脱离旧
+Monorepo；不要引用其他产品仓库的源码、依赖或本地路径。
 
-## 工作范围
+## 开始工作前
 
-- 默认只修改本目录。
-- 根目录 `worker.js` 与 `wrangler.toml` 是 ThinkPad/Camp 共用的历史部署入口；任务明确涉及它们时先读取 `../../docs/REPOSITORY-OWNERSHIP.md`，保持现有生产行为。
-- ThinkPad 使用明文笔记、Cookie 会话和独立 `thinkpad` PostgreSQL schema；不得接入 Memorae 密文协议或 Camp Supabase 数据。
-- 路径移动只修复 import、测试夹具、构建、部署和文档路径；保持 URL、数据库、Cookie、COS 前缀和业务行为不变。
+- 先阅读仓库根目录 `DEVELOPMENT.md` 和 `docs/ENVIRONMENT-SECRETS.md`。
+- 在修改文件前按 `DEVELOPMENT.md` 记录的当前分支运行 `scripts/sync-canonical-worktree.ps1`，
+  确认工作区干净且与 `origin` 同步。
+- 默认只修改本仓库；不要执行历史过滤、重写历史或在归档仓上开发。
+
+## 产品边界
+
+- ThinkPad 使用明文笔记、HttpOnly Cookie 会话和独立 `thinkpad` PostgreSQL schema。
+- 不得接入 Memorae 密文协议、Memorae 数据库或 Camp Memories Supabase 表。
+- COS 对象必须使用 `thinkpad/<user-id>/...` 前缀；不得修改 Bucket 级 ACL、生命周期或删除策略。
+- 路径、部署和文档调整必须保持现有 URL、数据库、Cookie、COS 前缀和业务行为。
 
 ## 完成标准
 
-- 运行 Server `npm run verify`。
-- 涉及旧静态 Web 时，Server 的前端内联脚本回归测试必须通过。
-- 运行仓库根目录 `node scripts/check-product-boundaries.mjs`。
+- 在 `server/` 执行 `npm run verify`。
+- 涉及 Web 内联页面时，Server 的历史/安全回归测试必须通过。
+- 运行 `git diff --check`，并在 CI 与边界脚本落地后运行仓库根目录的边界检查。
+- 环境变量只从本地忽略文件、部署机密钥管理或 CI Secret 注入，绝不提交真实值。
