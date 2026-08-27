@@ -1465,6 +1465,105 @@
             font-size: 13px;
             font-family: var(--font-ui);
         }
+        .history-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .history-toolbar-title {
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-family: var(--font-ui);
+        }
+        .history-version-menu {
+            position: relative;
+            flex: 0 0 auto;
+        }
+        .history-version-menu-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 7px 12px;
+            border: 1px solid var(--border-light);
+            background: var(--surface);
+        }
+        .history-version-caret {
+            font-size: 16px;
+            line-height: 1;
+        }
+        .history-version-menu-panel {
+            position: absolute;
+            z-index: 4;
+            top: calc(100% + 6px);
+            right: 0;
+            width: min(340px, calc(100vw - 64px));
+            max-height: min(360px, calc(100vh - 220px));
+            overflow-y: auto;
+            padding: 6px;
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            background: var(--surface);
+            box-shadow: var(--shadow-lg);
+        }
+        .history-version-menu-panel[hidden] { display: none; }
+        .history-version-option {
+            display: flex;
+            width: 100%;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 10px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-primary);
+            text-align: left;
+            cursor: pointer;
+            font-family: var(--font-ui);
+        }
+        .history-version-option:hover,
+        .history-version-option[aria-current="true"] {
+            background: color-mix(in srgb, var(--accent-peach) 55%, transparent);
+        }
+        .history-version-option strong { min-width: 44px; }
+        .history-version-option span {
+            flex: 1;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+        .history-version-check {
+            flex: 0 0 auto;
+            color: var(--primary);
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .history-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            margin-top: 12px;
+        }
+        .history-actions .btn-primary {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-pill);
+            font-size: 14px;
+            font-weight: 600;
+            font-family: var(--font-ui);
+            cursor: pointer;
+        }
+        .history-version-content {
+            max-height: 50vh;
+            overflow: auto;
+            padding: 12px;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            background: #fffdf8;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
         .history-modal {
             width: min(900px, calc(100vw - 32px));
             max-width: 900px;
@@ -4133,13 +4232,7 @@
                         '<span>' + esc(row.text) + '</span></div>';
                 }).join("");
                 return '<div class="history-diff-label"><span>' + esc(oldLabel) + '</span><span>→</span><span>' + esc(newLabel) + '</span></div>' +
-                    '<div class="history-diff">' + (lines || '<div class="history-diff-line diff-context"><span></span><span></span><span></span><span>内容一致</span></div>') + '</div>' +
-                    '<button class="btn-text" id="historyBack">返回版本列表</button>';
-            }
-
-            function bindHistoryBack() {
-                const back = $("historyBack");
-                if (back) back.addEventListener("click", () => openHistoryModal(id));
+                    '<div class="history-diff">' + (lines || '<div class="history-diff-line diff-context"><span></span><span></span><span></span><span>内容一致</span></div>') + '</div>';
             }
 
             try {
@@ -4147,33 +4240,100 @@
                 const revisions = result.revisions || [];
                 modalContainer.innerHTML = '<div class="modal-overlay" id="modalOverlay"><div class="modal history-modal"><div class="modal-header"><h3>历史版本</h3><button id="modalClose"><span class="material-symbols-rounded">close</span></button></div><div class="modal-body" id="historyBody"></div></div></div>';
                 const body = $("historyBody");
-                body.innerHTML = revisions.length ? revisions.map((r, index) => '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border-light)"><strong>v' + r.revision_no + (r.is_current ? '（当前）' : '') + '</strong><span style="flex:1;color:var(--text-secondary)">' + esc(new Date(r.created_at).toLocaleString("zh-CN")) + '</span><button class="btn-text history-view" data-rid="' + r.id + '">查看</button>' + (r.is_current ? '' : '<button class="btn-text history-compare" data-rid="' + r.id + '">与当前比较</button>' + (revisions[index + 1] ? '<button class="btn-text history-compare-prev" data-rid="' + r.id + '" data-prev-rid="' + revisions[index + 1].id + '">与上一版本比较</button>' : '') + '<button class="btn-primary history-restore" data-rid="' + r.id + '">恢复</button>') + '</div>').join('') : '<p>暂无历史版本</p>';
                 $("modalClose").addEventListener("click", () => { modalContainer.innerHTML = ""; });
-                body.querySelectorAll(".history-view").forEach(btn => btn.addEventListener("click", async () => {
-                    const detail = await apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.rid));
-                    body.innerHTML = '<pre style="white-space:pre-wrap;max-height:50vh;overflow:auto">' + esc(detail.revision.content || '') + '</pre><button class="btn-text" id="historyBack">返回版本列表</button>';
-                    $("historyBack").addEventListener("click", () => openHistoryModal(id));
-                }));
-                body.querySelectorAll(".history-restore").forEach(btn => btn.addEventListener("click", async () => {
-                    const entry = state.entries.find(x => x.id === id);
-                    if (!entry) return;
-                    try { await apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.rid) + "/restore", { method: "POST", body: JSON.stringify({ base_revision_id: entry.current_revision_id }) }); modalContainer.innerHTML = ""; fetchEntries(true, { keepVisible: true }); showToast("已恢复为新版本"); }
-                    catch (error) { showToast("恢复失败: " + error.message); }
-                }));
-                body.querySelectorAll(".history-compare").forEach(btn => btn.addEventListener("click", async () => {
-                    const detail = await apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.rid));
-                    const current = state.entries.find(x => x.id === id);
-                    body.innerHTML = renderDiff(detail.revision.content || '', current ? current.content : '', '历史 v' + detail.revision.revision_no, '当前版本');
-                    bindHistoryBack();
-                }));
-                body.querySelectorAll(".history-compare-prev").forEach(btn => btn.addEventListener("click", async () => {
-                    const [left, right] = await Promise.all([
-                        apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.rid)),
-                        apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(btn.dataset.prevRid))
-                    ]);
-                    body.innerHTML = renderDiff(right.revision.content || '', left.revision.content || '', '上一版本 v' + right.revision.revision_no, 'v' + left.revision.revision_no);
-                    bindHistoryBack();
-                }));
+                if (!revisions.length) {
+                    body.innerHTML = '<p>暂无历史版本</p>';
+                    return;
+                }
+
+                const entry = state.entries.find(x => x.id === id);
+                const currentRevision = revisions.find(revision => revision.is_current)
+                    || revisions.find(revision => revision.id === (entry && entry.current_revision_id))
+                    || revisions[0];
+                const historicalRevisions = revisions.filter(revision => revision.id !== currentRevision.id);
+                let selectedRevision = historicalRevisions[0] || null;
+
+                body.innerHTML = '<div class="history-toolbar">' +
+                    '<span class="history-toolbar-title">默认显示所选历史版本与当前版本的差异</span>' +
+                    '<div class="history-version-menu">' +
+                        '<button class="btn-text history-version-menu-toggle" id="historyVersionMenuToggle" type="button" aria-haspopup="menu" aria-expanded="false">其他版本<span class="history-version-caret" aria-hidden="true">⌄</span></button>' +
+                        '<div class="history-version-menu-panel" id="historyVersionMenu" role="menu" hidden></div>' +
+                    '</div>' +
+                    '</div><div id="historyComparison"></div>';
+
+                const comparison = $("historyComparison");
+                const menuToggle = $("historyVersionMenuToggle");
+                const menu = $("historyVersionMenu");
+
+                function closeVersionMenu() {
+                    menu.hidden = true;
+                    menuToggle.setAttribute("aria-expanded", "false");
+                }
+
+                function renderVersionMenu() {
+                    menu.innerHTML = historicalRevisions.length
+                        ? historicalRevisions.map(revision => '<button class="history-version-option" type="button" role="menuitem" data-rid="' + revision.id + '" aria-current="' + (selectedRevision && revision.id === selectedRevision.id ? 'true' : 'false') + '"><strong>v' + revision.revision_no + '</strong><span>' + esc(new Date(revision.created_at).toLocaleString("zh-CN")) + '</span>' + (selectedRevision && revision.id === selectedRevision.id ? '<span class="history-version-check" aria-hidden="true">✓</span>' : '') + '</button>').join('')
+                        : '<div style="padding:10px;color:var(--text-secondary);font-size:13px">暂无其他版本</div>';
+                    menu.querySelectorAll(".history-version-option").forEach(option => option.addEventListener("click", () => {
+                        selectedRevision = historicalRevisions.find(revision => revision.id === option.dataset.rid) || selectedRevision;
+                        closeVersionMenu();
+                        renderVersionMenu();
+                        renderCurrentDiff();
+                    }));
+                }
+
+                function bindSelectedVersionActions() {
+                    const view = $("historyViewSelected");
+                    if (view) view.addEventListener("click", () => {
+                        comparison.innerHTML = '<div class="history-diff-label"><span>历史版本 v' + selectedRevision.revision_no + '</span></div><pre class="history-version-content">' + esc(selectedRevision.content || '') + '</pre><div class="history-actions"><button class="btn-text" id="historyBackToDiff">返回 Diff</button></div>';
+                        $("historyBackToDiff").addEventListener("click", renderCurrentDiff);
+                    });
+
+                    const comparePrevious = $("historyComparePrevious");
+                    if (comparePrevious) comparePrevious.addEventListener("click", () => {
+                        const selectedIndex = revisions.findIndex(revision => revision.id === selectedRevision.id);
+                        const previousRevision = revisions[selectedIndex + 1];
+                        if (!previousRevision) return;
+                        comparison.innerHTML = renderDiff(previousRevision.content || '', selectedRevision.content || '', '上一版本 v' + previousRevision.revision_no, 'v' + selectedRevision.revision_no) + '<div class="history-actions"><button class="btn-text" id="historyBackToDiff">返回默认 Diff</button></div>';
+                        $("historyBackToDiff").addEventListener("click", renderCurrentDiff);
+                    });
+
+                    const restore = $("historyRestoreSelected");
+                    if (restore) restore.addEventListener("click", async () => {
+                        if (!entry) return;
+                        try {
+                            await apiRequest("/entries/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(selectedRevision.id) + "/restore", { method: "POST", body: JSON.stringify({ base_revision_id: entry.current_revision_id }) });
+                            modalContainer.innerHTML = "";
+                            fetchEntries(true, { keepVisible: true });
+                            showToast("已恢复为新版本");
+                        } catch (error) { showToast("恢复失败: " + error.message); }
+                    });
+                }
+
+                function renderCurrentDiff() {
+                    if (!selectedRevision) {
+                        comparison.innerHTML = '<p>当前只有 v' + currentRevision.revision_no + '，生成下一版后将自动显示 Diff。</p>';
+                        return;
+                    }
+                    const selectedIndex = revisions.findIndex(revision => revision.id === selectedRevision.id);
+                    const hasPreviousRevision = selectedIndex >= 0 && Boolean(revisions[selectedIndex + 1]);
+                    comparison.innerHTML = renderDiff(selectedRevision.content || '', currentRevision.content || (entry ? entry.content : ''), '历史 v' + selectedRevision.revision_no, '当前 v' + currentRevision.revision_no) +
+                        '<div class="history-actions"><button class="btn-text" id="historyViewSelected">查看此版本</button>' +
+                        (hasPreviousRevision ? '<button class="btn-text" id="historyComparePrevious">与上一版本比较</button>' : '') +
+                        '<button class="btn-primary" id="historyRestoreSelected">恢复此版本</button></div>';
+                    bindSelectedVersionActions();
+                }
+
+                menuToggle.addEventListener("click", () => {
+                    const willOpen = menu.hidden;
+                    menu.hidden = !willOpen;
+                    menuToggle.setAttribute("aria-expanded", String(willOpen));
+                });
+                body.addEventListener("click", event => {
+                    if (!event.target.closest(".history-version-menu")) closeVersionMenu();
+                });
+                renderVersionMenu();
+                renderCurrentDiff();
             } catch (error) { showToast("读取历史失败: " + error.message); }
         }
 

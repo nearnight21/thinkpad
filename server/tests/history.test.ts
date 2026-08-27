@@ -27,3 +27,13 @@ test('历史入口使用稳定图标并提供 GitHub 风格逐行差异', async 
   assert.match(source, /diff-del/);
   assert.match(source, /buildDiffRows/);
 });
+
+test('历史弹窗默认显示 Diff，并通过二级菜单切换其他版本', async () => {
+  const source = await readFile(new URL('../../web/app.html', import.meta.url), 'utf8');
+  assert.match(source, /selectedRevision = historicalRevisions\[0\]/);
+  assert.match(source, /id="historyVersionMenuToggle"/);
+  assert.match(source, /class="history-version-menu-panel"/);
+  assert.match(source, /renderCurrentDiff\(\)/);
+  assert.match(source, /查看此版本/);
+  assert.match(source, /恢复此版本/);
+});
