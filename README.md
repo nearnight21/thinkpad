@@ -8,7 +8,7 @@
 - `docs/`：开发交接和环境变量清单。
 - `scripts/`：仓库同步和后续仓库级检查脚本。
 
-当前仓库尚未绑定新的 GitHub 远端；本地 `origin` 只用于迁移验证。新的 Vercel、Worker
+规范分支为 `main`，远端为 `https://github.com/nearnight21/thinkpad`。新的 Vercel、Worker
 和 Wrangler 配置将在 Phase 5 的部署阶段单独重建。
 
 服务端验证：
@@ -21,6 +21,5 @@ npm run verify
 跨电脑交接前运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\sync-canonical-worktree.ps1 `
-  -CanonicalBranch codex/cos-direct-transfer
+powershell -ExecutionPolicy Bypass -File .\scripts\sync-canonical-worktree.ps1
 ```
