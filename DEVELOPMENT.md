@@ -13,6 +13,9 @@
 - 独立 CI 和边界检查尚未创建；生产部署配置已改为只接受 ThinkPad 自己的环境来源。
 - `server/deploy/compose.yaml` 从同目录未跟踪的 `.env` 读取 ThinkPad 运行时变量，Caddy
   通过 `THINKPAD_SITE_DOMAIN` 显式选择站点域名。
+- 本机生产 SSH 目标与静态发布路径统一保存在忽略文件
+  `server/deploy/deploy-target.env.local`；字段契约见同目录脱敏模板，后续部署不得再从旧仓或
+  其他项目目录查找配置。
 
 ## 仓库结构
 

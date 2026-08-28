@@ -25,3 +25,6 @@ Thumbs.db
 
 # ThinkPad 迁移产生的临时文件
 server/migration-output/
+
+# 本机生产部署目标（包含主机、账号和本机密钥路径）
+server/deploy/deploy-target.env.local
