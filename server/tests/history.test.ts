@@ -37,3 +37,12 @@ test('历史弹窗默认显示 Diff，并通过二级菜单切换其他版本', 
   assert.match(source, /查看此版本/);
   assert.match(source, /恢复此版本/);
 });
+
+test('详情页使用全屏内联编辑，缩略图继续使用原编辑弹窗', async () => {
+  const source = await readFile(new URL('../../web/app.html', import.meta.url), 'utf8');
+  assert.match(source, /function openFullscreenEditor\(entry\)/);
+  assert.match(source, /class="reader-content-wrap reader-editor-form"/);
+  assert.match(source, /openFullscreenEditor\(currentEntry\)/);
+  assert.match(source, /openEntryModal\(state\.entries\.find\(x => x\.id === edit\.dataset\.id\)\)/);
+  assert.doesNotMatch(source, /reader-edit-btn[\s\S]{0,300}openEntryModal/);
+});

@@ -1386,7 +1386,8 @@
             font-size: 13px;
             color: var(--text-secondary);
         }
-        .reader-edit-btn, .reader-archive-btn, .reader-unarchive-btn, .reader-history-btn, .reader-close-btn {
+        .reader-edit-btn, .reader-archive-btn, .reader-unarchive-btn, .reader-history-btn,
+        .reader-cancel-btn, .reader-save-btn, .reader-close-btn {
             display: inline-flex;
             align-items: center;
             gap: 4px;
@@ -1400,10 +1401,22 @@
             transition: all 0.15s ease;
             font-family: var(--font-ui);
         }
-        .reader-edit-btn:hover, .reader-archive-btn:hover, .reader-unarchive-btn:hover, .reader-history-btn:hover, .reader-close-btn:hover {
+        .reader-edit-btn:hover, .reader-archive-btn:hover, .reader-unarchive-btn:hover, .reader-history-btn:hover,
+        .reader-cancel-btn:hover, .reader-save-btn:hover, .reader-close-btn:hover {
             background: var(--surface-darker);
             color: var(--text-primary);
         }
+        .reader-save-btn {
+            background: var(--accent-sage);
+            border-color: var(--accent-sage);
+            color: #fffefa;
+            font-weight: 600;
+        }
+        .reader-save-btn:hover {
+            background: color-mix(in srgb, var(--accent-sage) 84%, var(--ink));
+            color: #fffefa;
+        }
+        .reader-save-btn:disabled { opacity: 0.55; cursor: wait; }
         .reader-close-btn { padding: 6px 8px; }
         .history-glyph {
             display: inline-flex;
@@ -1591,6 +1604,50 @@
             margin: 0 0 20px;
             color: var(--ink);
         }
+        .reader-editor-form {
+            max-width: 840px;
+            padding-top: 36px;
+        }
+        .reader-editor-form .modal-field { margin-bottom: 22px; }
+        .reader-editor-form .reader-editor-title {
+            width: 100%;
+            padding: 8px 0 12px;
+            border: 0;
+            border-bottom: 1px solid var(--border);
+            border-radius: 0;
+            outline: none;
+            background: transparent;
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-size: 2.25em;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .reader-editor-form .reader-editor-title:focus { border-bottom-color: var(--accent-sage); }
+        .reader-editor-form .reader-editor-content {
+            width: 100%;
+            min-height: max(360px, calc(100vh - 420px));
+            resize: vertical;
+            padding: 18px 20px;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            outline: none;
+            background: var(--surface);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 16px;
+            line-height: 1.75;
+        }
+        .reader-editor-form .reader-editor-content:focus {
+            border-color: var(--accent-sage);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-sage) 14%, transparent);
+        }
+        .reader-editor-meta {
+            display: grid;
+            grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+            gap: 16px;
+        }
+        .reader-editor-url-field[hidden] { display: none; }
         .reader-tags {
             display: flex;
             gap: 6px;
@@ -2125,6 +2182,10 @@
         @media (max-width: 640px) {
             .reader-content-wrap { padding: 32px 18px 60px; font-size: 15px; }
             .reader-title { font-size: 1.7em; }
+            .reader-editor-form { padding-top: 24px; }
+            .reader-editor-form .reader-editor-title { font-size: 1.7em; }
+            .reader-editor-form .reader-editor-content { min-height: calc(100dvh - 390px); font-size: 15px; }
+            .reader-editor-meta { grid-template-columns: 1fr; gap: 0; }
             .reader-edit-label { display: none; }
         }
         @media (max-width: 640px), (pointer: coarse) {
@@ -3829,18 +3890,18 @@
             try {
                 const current = state.entries.find(x => x.id === id);
                 if (current && !Object.prototype.hasOwnProperty.call(fields, "base_revision_id")) fields.base_revision_id = current.current_revision_id;
-                await apiRequest("/entries/" + encodeURIComponent(id), {
+                const result = await apiRequest("/entries/" + encodeURIComponent(id), {
                     method: "PATCH",
                     body: JSON.stringify(fields)
                 });
+                invalidateEntrySnapshot();
+                fetchEntries(true, { keepVisible: true });
+                return result.entry || current || true;
             } catch (error) {
                 if (error.status === 409) showToast("这条笔记已在其他设备更新，请保留草稿后重新加载");
                 else showToast("更新失败: " + error.message);
                 return false;
             }
-            invalidateEntrySnapshot();
-            fetchEntries(true, { keepVisible: true });
-            return true;
         }
 
         async function togglePin(id, pinned) {
@@ -4172,7 +4233,11 @@
                 if (e.target.closest(".reader-close-btn") || e.target === root) closeReader();
             });
             const editBtn = root.querySelector(".reader-edit-btn");
-            if (editBtn) editBtn.addEventListener("click", () => { closeReader(); openEntryModal(state.entries.find(x => x.id === editId)); });
+            if (editBtn) editBtn.addEventListener("click", () => {
+                const currentEntry = state.entries.find(x => x.id === editId) || entry;
+                closeReader();
+                openFullscreenEditor(currentEntry);
+            });
             const archiveReaderBtn = root.querySelector(".reader-archive-btn");
             if (archiveReaderBtn) archiveReaderBtn.addEventListener("click", () => { closeReader(); archiveEntry(archiveReaderBtn.dataset.id); });
             const unarchiveReaderBtn = root.querySelector(".reader-unarchive-btn");
@@ -4183,6 +4248,223 @@
             tagEls.forEach(t => t.addEventListener("click", (e) => { e.stopPropagation(); closeReader(); state.filterTag = t.dataset.tag; fetchEntries(true); }));
             const escHandler = (e) => { if (e.key === "Escape") closeReader(); };
             document.addEventListener("keydown", escHandler);
+        }
+
+        // 详情页内联编辑：保留全屏阅读上下文，不复用缩略图页的编辑弹窗。
+        function openFullscreenEditor(entry) {
+            if (!entry) return;
+            const date = new Date(entry.created_at).toLocaleDateString("zh-CN", {
+                year: "numeric", month: "long", day: "numeric"
+            });
+            const typeOptions = Object.entries(typeNames)
+                .map(([value, label]) => '<option value="' + value + '"' + (value === entry.type ? ' selected' : '') + '>' + label + '</option>')
+                .join("");
+            const linkMatch = entry.type === "link"
+                ? String(entry.title || "").match(/^(https?:\/\/\S+?)(?:\s+·\s+(.*))?$/)
+                : null;
+            const initialUrl = linkMatch ? linkMatch[1] : "";
+            const initialTitle = linkMatch ? (linkMatch[2] || "") : (entry.title || "");
+            const tags = new Set(entry.tags || []);
+
+            modalContainer.innerHTML = `
+                <div class="fullscreen-reader reader-editing" id="fullscreenReader">
+                    <div class="reader-header">
+                        <div class="reader-header-left">
+                            <span class="type-badge" data-type="${entry.type}">
+                                <span class="material-symbols-rounded" style="font-size:13px;vertical-align:middle;margin-right:3px">${typeIcons[entry.type] || "description"}</span>
+                                ${typeNames[entry.type]}
+                            </span>
+                            <span class="reader-date">${date}</span>
+                        </div>
+                        <div class="reader-header-right">
+                            <button class="reader-cancel-btn" type="button" title="取消编辑">
+                                <span class="material-symbols-rounded">undo</span><span class="reader-edit-label">取消</span>
+                            </button>
+                            <button class="reader-save-btn" type="submit" form="readerEditorForm" title="保存修改">
+                                <span class="material-symbols-rounded">save</span><span class="reader-edit-label">保存</span>
+                            </button>
+                            <button class="reader-close-btn" type="button" title="关闭">
+                                <span class="material-symbols-rounded">close</span>
+                            </button>
+                        </div>
+                    </div>
+                    <form class="reader-content-wrap reader-editor-form" id="readerEditorForm">
+                        <div class="modal-field">
+                            <label for="readerEntryTitle">标题（可选）</label>
+                            <input class="reader-editor-title" type="text" id="readerEntryTitle"
+                                placeholder="无标题将自动取正文前 40 字" value="${esc(initialTitle)}">
+                        </div>
+                        <div class="reader-editor-meta">
+                            <div class="modal-field">
+                                <label for="readerEntryType">类型</label>
+                                <select id="readerEntryType">${typeOptions}</select>
+                            </div>
+                            <div class="modal-field reader-editor-url-field" id="readerUrlField"${entry.type === "link" ? "" : " hidden"}>
+                                <label for="readerEntryUrl">链接 URL</label>
+                                <input type="url" id="readerEntryUrl" placeholder="https://..." value="${esc(initialUrl)}" autocomplete="url">
+                            </div>
+                        </div>
+                        <div class="modal-field">
+                            <label for="entryContent">正文</label>
+                            <textarea class="reader-editor-content" id="entryContent" placeholder="写下你的学习、思考或问题...">${esc(entry.content || "")}</textarea>
+                            <div class="modal-toolbar">
+                                <button class="tool-btn" id="readerPasteImgBtn" type="button" title="粘贴图片">
+                                    <span class="material-symbols-rounded" style="font-size:18px">image</span>
+                                    <span class="tooltip">粘贴图片 (Ctrl+V)</span>
+                                </button>
+                                <button class="tool-btn" id="readerUploadImgBtn" type="button" title="上传图片">
+                                    <span class="material-symbols-rounded" style="font-size:18px">cloud_upload</span>
+                                    <span class="tooltip">上传图片 (≤20MB)</span>
+                                </button>
+                                <button class="tool-btn" id="readerImgUrlBtn" type="button" title="插入图片 URL">
+                                    <span class="material-symbols-rounded" style="font-size:18px">add_photo_alternate</span>
+                                    <span class="tooltip">插入图片 URL</span>
+                                </button>
+                                <span class="tool-label" id="readerPasteIndicator" hidden></span>
+                            </div>
+                        </div>
+                        <div class="modal-field">
+                            <label for="readerTagInput">标签（回车添加）</label>
+                            <div class="tag-input-wrap" id="readerTagInputWrap">
+                                <input type="text" id="readerTagInput" placeholder="输入标签后按回车" autocomplete="off">
+                            </div>
+                        </div>
+                    </form>
+                </div>`;
+
+            const root = document.getElementById("fullscreenReader");
+            const form = document.getElementById("readerEditorForm");
+            const titleInput = document.getElementById("readerEntryTitle");
+            const contentInput = document.getElementById("entryContent");
+            const typeSelect = document.getElementById("readerEntryType");
+            const urlField = document.getElementById("readerUrlField");
+            const urlInput = document.getElementById("readerEntryUrl");
+            const tagWrap = document.getElementById("readerTagInputWrap");
+            const tagInput = document.getElementById("readerTagInput");
+            const saveButton = root.querySelector(".reader-save-btn");
+            const pasteIndicator = document.getElementById("readerPasteIndicator");
+
+            function cleanup() {
+                modalContainer.innerHTML = "";
+                document.removeEventListener("keydown", editorKeyHandler);
+            }
+
+            function returnToReader() {
+                cleanup();
+                openFullscreenReader(entry);
+            }
+
+            function renderEditorTags() {
+                tagWrap.querySelectorAll(".tag").forEach(element => element.remove());
+                tagWrap.insertAdjacentHTML("afterbegin", Array.from(tags).sort().map(tag =>
+                    '<span class="tag">' + esc(tag) + '<span class="remove" data-remove="' + esc(tag) + '">×</span></span>'
+                ).join(""));
+            }
+
+            function insertContent(text) {
+                const start = contentInput.selectionStart;
+                const end = contentInput.selectionEnd;
+                contentInput.value = contentInput.value.slice(0, start) + text + contentInput.value.slice(end);
+                contentInput.selectionStart = contentInput.selectionEnd = start + text.length;
+                contentInput.focus();
+            }
+
+            async function insertPastedImage(file) {
+                pasteIndicator.hidden = false;
+                pasteIndicator.textContent = "正在上传图片...";
+                try {
+                    const url = await uploadImageToCos(file);
+                    insertContent("![" + (file.name || "image") + "](" + url + ")");
+                    pasteIndicator.textContent = "图片已上传 ✓ (" + formatFileSize(file.size) + ")";
+                } catch (error) {
+                    pasteIndicator.textContent = "上传失败: " + (error.message || "网络错误");
+                    pasteIndicator.style.color = "var(--error)";
+                }
+                setTimeout(() => {
+                    pasteIndicator.hidden = true;
+                    pasteIndicator.style.color = "";
+                }, 3000);
+            }
+
+            renderEditorTags();
+            typeSelect.addEventListener("change", () => {
+                urlField.hidden = typeSelect.value !== "link";
+            });
+            tagInput.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                const tag = tagInput.value.trim();
+                if (tag) tags.add(tag);
+                tagInput.value = "";
+                renderEditorTags();
+            });
+            tagWrap.addEventListener("click", (event) => {
+                const remove = event.target.closest("[data-remove]");
+                if (!remove) return;
+                tags.delete(remove.dataset.remove);
+                renderEditorTags();
+                tagInput.focus();
+            });
+            contentInput.addEventListener("paste", async (event) => {
+                const imageItem = Array.from(event.clipboardData?.items || []).find(item => item.type.startsWith("image/"));
+                if (!imageItem) return;
+                event.preventDefault();
+                const file = imageItem.getAsFile();
+                if (file) await insertPastedImage(file);
+            });
+            document.getElementById("readerPasteImgBtn").addEventListener("click", () => {
+                contentInput.focus();
+                showToast("在正文区域按 Ctrl+V 粘贴图片");
+            });
+            document.getElementById("readerUploadImgBtn").addEventListener("click", () => uploadInput.click());
+            document.getElementById("readerImgUrlBtn").addEventListener("click", () => {
+                const url = prompt("请输入图片 URL：");
+                if (url?.trim()) {
+                    insertContent("![image](" + url.trim() + ")");
+                    pasteIndicator.hidden = false;
+                    pasteIndicator.textContent = "图片已插入 ✓";
+                    setTimeout(() => { pasteIndicator.hidden = true; }, 2500);
+                }
+            });
+            root.querySelector(".reader-cancel-btn").addEventListener("click", returnToReader);
+            root.querySelector(".reader-close-btn").addEventListener("click", cleanup);
+            form.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const title = titleInput.value.trim();
+                const content = contentInput.value.trim();
+                const type = typeSelect.value;
+                const url = urlInput.value.trim();
+                const finalTitle = type === "link" && url ? url + (title ? " · " + title : "") : title;
+                if (!content && type !== "link") {
+                    showToast("请输入内容");
+                    return;
+                }
+                if (type === "link" && !url && !content) {
+                    showToast("链接类型请填写 URL 或内容");
+                    return;
+                }
+                saveButton.disabled = true;
+                const updatedEntry = await updateEntry(entry.id, {
+                    title: finalTitle,
+                    content,
+                    tags: Array.from(tags),
+                    type
+                });
+                saveButton.disabled = false;
+                if (!updatedEntry) return;
+                cleanup();
+                openFullscreenReader(updatedEntry);
+                showToast("已保存");
+            });
+            const editorKeyHandler = (event) => {
+                if (event.key === "Escape") returnToReader();
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+                    event.preventDefault();
+                    form.requestSubmit();
+                }
+            };
+            document.addEventListener("keydown", editorKeyHandler);
+            setTimeout(() => contentInput.focus(), 100);
         }
 
         async function openHistoryModal(id) {
