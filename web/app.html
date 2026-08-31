@@ -1417,6 +1417,16 @@
             color: #fffefa;
         }
         .reader-save-btn:disabled { opacity: 0.55; cursor: wait; }
+        .reader-action-icon {
+            width: 18px;
+            height: 18px;
+            flex: 0 0 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
         .reader-close-btn { padding: 6px 8px; }
         .history-glyph {
             display: inline-flex;
@@ -4278,10 +4288,19 @@
                         </div>
                         <div class="reader-header-right">
                             <button class="reader-cancel-btn" type="button" title="取消编辑">
-                                <span class="material-symbols-rounded">undo</span><span class="reader-edit-label">取消</span>
+                                <svg class="reader-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M9 7H5v4"></path>
+                                    <path d="M5.5 10.5A7 7 0 1 1 7 17.5"></path>
+                                </svg>
+                                <span class="reader-edit-label">取消</span>
                             </button>
                             <button class="reader-save-btn" type="submit" form="readerEditorForm" title="保存修改">
-                                <span class="material-symbols-rounded">save</span><span class="reader-edit-label">保存</span>
+                                <svg class="reader-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M5 4h12l2 2v14H5z"></path>
+                                    <path d="M8 4v6h8V4"></path>
+                                    <path d="M8 20v-6h8v6"></path>
+                                </svg>
+                                <span class="reader-edit-label">保存</span>
                             </button>
                             <button class="reader-close-btn" type="button" title="关闭">
                                 <span class="material-symbols-rounded">close</span>

@@ -45,4 +45,6 @@ test('详情页使用全屏内联编辑，缩略图继续使用原编辑弹窗',
   assert.match(source, /openFullscreenEditor\(currentEntry\)/);
   assert.match(source, /openEntryModal\(state\.entries\.find\(x => x\.id === edit\.dataset\.id\)\)/);
   assert.doesNotMatch(source, /reader-edit-btn[\s\S]{0,300}openEntryModal/);
+  assert.match(source, /class="reader-action-icon"/);
+  assert.doesNotMatch(source, /class="material-symbols-rounded">(?:undo|save)<\/span>/);
 });
